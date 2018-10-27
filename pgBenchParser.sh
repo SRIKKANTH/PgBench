@@ -39,7 +39,6 @@ function get_MinMax()
     echo "$min,$max"
 }
 
-
 function Parse
 {
     log_file_name=$1
@@ -132,9 +131,9 @@ function ParseAll()
         ((count++))
     done
 
-
     tar -cf `date|sed "s/ /_/g"| sed "s/:/_/g"`.tar *.csv  $log_folder/*.csv
     echo "Parsing done!"
     echo "Summary File: $SummaryCsv"
 }
+
 ParseAll

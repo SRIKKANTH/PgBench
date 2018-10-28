@@ -15,6 +15,14 @@ function get_Avg()
     printf "%.3f\n" $average
 }
 
+function get_Sum()
+{
+    inputArray=("$@")
+    sum=$( IFS="+"; bc <<< "${inputArray[*]}" )
+    unset IFS
+    echo $sum
+}
+
 function get_MinMax()
 {
     inputArray=("$@")
@@ -57,14 +65,15 @@ function Parse
     res_TPSIncConnEstablishing=(`grep "tps.*including connections establishing"  $log_file_name | awk '{print $3}'`)
     res_TPSExcludingConnEstablishing=(`grep "tps.*excluding connections establishing"  $log_file_name | awk '{print $3}'`)
     res_PgServer=(`grep  pgbench $log_file_name | sed "s_^.*postgres://__" | sed "s_:5432/postgres__"`)
+    res_Duration=(`grep duration $log_file_name| awk '{print $2}'`)
 
-    echo "Iteration,ScalingFactor,Clients,Threads,TotalTransaction,AvgLatency,StdDevLatency,TPSIncConnEstablishing,TPSExcludingConnEstablishing,TransactionType,QueryMode,Duration,PgServer"  > $csv_file
+    echo "Iteration,ScalingFactor,Clients,Threads,TotalTransaction,AvgLatency,StdDevLatency,TPSIncConnEstablishing,TPSExcludingConnEstablishing,TransactionType,QueryMode,Duration,PgServer,Duration"  > $csv_file
 
     count=0
 
     while [ "x${res_ScalingFactor[$count]}" != "x" ]
     do
-        echo "${res_Iteration[$count]},${res_ScalingFactor[$count]},${res_Clients[$count]},${res_Threads[$count]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_PgServer[$count]}"  >> $csv_file
+        echo "${res_Iteration[$count]},${res_ScalingFactor[$count]},${res_Clients[$count]},${res_Threads[$count]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_PgServer[$count]},${res_Duration[$count]}"  >> $csv_file
         ((count++))
     done
 
@@ -75,6 +84,8 @@ function Parse
 
     minMax_TPSIncConnEstablishing=`get_MinMax "${res_TPSIncConnEstablishing[@]}"`
     minMax_TPSExcludingConnEstablishing=`get_MinMax "${res_TPSExcludingConnEstablishing[@]}"`
+
+    TotalExecutionDuration=`get_Sum "${res_Duration[@]}"`
 
     echo "" > $csv_file-tmp
     echo ",ServerDetails" >> $csv_file-tmp
@@ -87,7 +98,9 @@ function Parse
     echo ",TPSIncConnEstablishing,$minMax_TPSIncConnEstablishing,$avg_TPSIncConnEstablishing" >> $csv_file-tmp
     echo ",TPSExcludingConnEstablishing,$minMax_TPSExcludingConnEstablishing,$avg_TPSExcludingConnEstablishing" >> $csv_file-tmp
     echo "" >> $csv_file-tmp
-
+    echo ",TotalExecutionDuration,$TotalExecutionDuration" >> $csv_file-tmp
+    echo "" >> $csv_file-tmp
+    
     cat $csv_file >> $csv_file-tmp
     mv $csv_file-tmp $csv_file
 
@@ -128,7 +141,7 @@ function SendMail ()
     echo "Sending Email Report"
 
     Subject='PG synthetic workload report: '`date +%F`
-    mail -u RamaKrishna -a 'MIME-Version: 1.0' -a 'Content-Type: text/html; charset=iso-8859-1' -a 'X-AUTOR: Ing. Gareca' -s "$Subject" v-srm@microsoft.com -A $Attachment  < $MailBodyFile
+    mail  -a "From:Alfred" -a 'MIME-Version: 1.0' -a 'Content-Type: text/html; charset=iso-8859-1' -a 'X-AUTOR: Ing. Gareca' -s "$Subject" v-srm@microsoft.com -A $Attachment  < $MailBodyFile
 }
 
 function ParseAll()
@@ -137,8 +150,8 @@ function ParseAll()
 
     list=(`ls $log_folder/*.log`)
 
-    echo ",,ServerDetails,,,TPSIncConnEstablishing,,,TPSExcludingConnEstablishing,,,Parameters" >> $SummaryCsv
-    echo ",Name,Vcores,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,ScalingFactor,Clients,Threads" >> $SummaryCsv
+    echo ",,ServerDetails,,,TPSIncConnEstablishing,,,TPSExcludingConnEstablishing,,,,Parameters" >> $SummaryCsv
+    echo ",Name,Vcores,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,ScalingFactor,Clients,Threads,TotalExecutionDuration" >> $SummaryCsv
     count=0
     while [ "x${list[$count]}" != "x" ]
     do
@@ -149,8 +162,8 @@ function ParseAll()
         TPSIncConnEstablishing=`grep TPSIncConnEstablishing $CsvFile | head -1 | sed "s/,TPSIncConnEstablishing,//g"`
         TPSExcludingConnEstablishing=`grep TPSExcludingConnEstablishing $CsvFile  | head -1 | sed "s/,TPSExcludingConnEstablishing,//g"`
         Params=`grep $ServerName $CsvFile | tail -1| sed "s/,/ /g"| awk '{print $2,$3,$4}'| sed "s/ /,/g"`
-
-        echo ",$ServerName,$ServerVcores,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$Params" >> $SummaryCsv
+        TotalExecutionDuration=`grep TotalExecutionDuration $CsvFile| awk -F"," '{print $3}'`
+        echo ",$ServerName,$ServerVcores,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$Params,$TotalExecutionDuration" >> $SummaryCsv
 
         fileName=`basename $CsvFile`
         fileName=`echo $CsvFile |sed "s/$fileName/$ServerName\.csv/"`
@@ -171,7 +184,7 @@ function ParseAll()
     zip -r $reportZipFile *.csv $log_folder/*
     SendMail $htmlFile $reportZipFile 
     echo "Parsing done!"
-    echo "Summary File: $SummaryCsv"
+    #echo "Summary File: $SummaryCsv"
 }
 
 function CheckDependencies()
@@ -200,13 +213,13 @@ function CheckDependencies()
 
 
 }
+
 ###############################################################
 ##
 ##              Script Execution Starts from here
 ###############################################################
 CheckDependencies
 
-#log_folder=OldLogs/`date|sed "s/ /_/g"| sed "s/:/_/g"`
 log_folder=`date|sed "s/ /_/g"| sed "s/:/_/g"`
 mkdir -p $log_folder
 echo "Getting logs from clients.."    

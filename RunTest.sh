@@ -1,8 +1,14 @@
+#!/bin/bash
 pkill pbenchTest
-log_file=LogPbenchTest_`hostname`.log
-if [ -f $log_file ]; then
+pkill pgbench
+cd /home/orcasql/W/
+LogFile=LogPbenchTest_`hostname`.log
+LogFileLast=Last_$LogFile
+
+if [ -f $LogFile ]; then
     folder=OldLogs/`date|sed "s/ /_/g"| sed "s/:/_/g"`
-    mkdir $folder
-    mv $log_file $folder/
+    mkdir -p $folder
+    cp $LogFile $folder/
+    mv $LogFile $LogFileLast 
 fi
-bash pbenchTest.sh > $log_file 2>&1
+nohup ./pbenchTest.sh > $LogFile 2>&1 &

@@ -5,17 +5,6 @@
 # Email	: 
 ####
 
-log_folder=$1
-echo $#
-if [ "$#" -eq 0 ]; then
-    log_folder="."
-fi
-
-if [ ! -d $log_folder ]; then
-    echo "$log_folder: File not found!"
-	exit 1
-fi
-
 function get_Avg()
 {
     inputArray=("$@")
@@ -105,22 +94,56 @@ function Parse
     echo $csv_file
 }
 
+function CSV2Html()
+{
+    CsvFileName=$1
+    HtmlFileName=`echo $CsvFileName | sed "s/\.csv/\.html/"`
+    cat $CsvFileName |sed "s/^,//g" |sed "s/ //g"  |awk -F"," 'BEGIN{    print "<table border="1">"}{
+        print "<tr>";
+        count=0
+        for(i=1;i<=NF;i++){
+            if($i == ""){
+                count++
+            }
+            else{
+                if(count!=0){
+                    count++
+                    print "<td colspan="count">"$i"</td>"
+                    count=0
+                }else{
+                    print "<td>" $i"</td>";
+                }            
+            }       
+        }
+        print "</tr>"
+    }END{print "</table>"}'  > $HtmlFileName
+    echo $HtmlFileName
+}
+
+function SendMail ()
+{
+    MailBodyFile=$1
+    Attachment=$2
+    
+    echo "Sending Email Report"
+
+    Subject='PG synthetic workload report: '`date +%F`
+    mail -u RamaKrishna -a 'MIME-Version: 1.0' -a 'Content-Type: text/html; charset=iso-8859-1' -a 'X-AUTOR: Ing. Gareca' -s "$Subject" v-srm@microsoft.com -A $Attachment  < $MailBodyFile
+}
+
 function ParseAll()
 {
     SummaryCsv="$log_folder/Summary.csv"
 
     list=(`ls $log_folder/*.log`)
 
-    echo "" > $SummaryCsv
-    echo "" >> $SummaryCsv
-    echo ",ServerDetails,,TPSIncConnEstablishing,,,TPSExcludingConnEstablishing,,,Parameters" >> $SummaryCsv
+    echo ",,ServerDetails,,,TPSIncConnEstablishing,,,TPSExcludingConnEstablishing,,,Parameters" >> $SummaryCsv
     echo ",Name,Vcores,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,ScalingFactor,Clients,Threads" >> $SummaryCsv
     count=0
     while [ "x${list[$count]}" != "x" ]
     do
         echo "Parsing ${list[$count]}.."
         CsvFile=`Parse ${list[$count]}`
-        echo " CsvFile $CsvFile"
         ServerVcores=`grep ServerVcores $CsvFile | sed "s/,/ /g"| awk '{print $2}'`
         ServerName=`grep ServerName $CsvFile | sed "s/,/ /g"| awk '{print $2}'`
         TPSIncConnEstablishing=`grep TPSIncConnEstablishing $CsvFile | head -1 | sed "s/,TPSIncConnEstablishing,//g"`
@@ -128,12 +151,81 @@ function ParseAll()
         Params=`grep $ServerName $CsvFile | tail -1| sed "s/,/ /g"| awk '{print $2,$3,$4}'| sed "s/ /,/g"`
 
         echo ",$ServerName,$ServerVcores,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$Params" >> $SummaryCsv
+
+        fileName=`basename $CsvFile`
+        fileName=`echo $CsvFile |sed "s/$fileName/$ServerName\.csv/"`
+        mv $CsvFile $fileName
+        
+        fileName=`basename ${list[$count]}`
+        fileName=`echo ${list[$count]} |sed "s/$fileName/$ServerName\.log/"`
+        mv ${list[$count]} $fileName
+
         ((count++))
     done
 
-    tar -cf `date|sed "s/ /_/g"| sed "s/:/_/g"`.tar *.csv  $log_folder/*.csv
+    htmlFile=`CSV2Html $SummaryCsv`
+    
+    mkdir -p $log_folder/CSVs
+    mv $log_folder/*.csv $log_folder/CSVs/
+    reportZipFile=`date|sed "s/ /_/g"| sed "s/:/_/g"`.zip
+    zip -r $reportZipFile *.csv $log_folder/*
+    SendMail $htmlFile $reportZipFile 
     echo "Parsing done!"
     echo "Summary File: $SummaryCsv"
 }
 
+function CheckDependencies()
+{
+    if [ ! -f ConnectionProperties.csv ]; then
+        echo "ERROR: ConnectionProperties.csv: File not found!"
+        exit 1
+    fi
+
+    if [ ! -f  ClientDetails.txt ]; then
+        echo "ERROR: ClientDetails.txt: File not found!"
+        exit 1
+    fi
+
+    if [[ `which bc` == "" ]]; then
+        echo "INFO: bc: not installed!"
+        echo "INFO: bc: Trying to install!"
+        apt install bc -y
+    fi
+    
+    if [[ `dpkg -l | grep mailutils| wc -l` == "0" ]]; then
+        echo "INFO: mailutils: not installed!"
+        echo "INFO: mailutils: Trying to install!"
+        apt-get install mailutils
+    fi
+
+
+}
+###############################################################
+##
+##              Script Execution Starts from here
+###############################################################
+CheckDependencies
+
+#log_folder=OldLogs/`date|sed "s/ /_/g"| sed "s/:/_/g"`
+log_folder=`date|sed "s/ /_/g"| sed "s/:/_/g"`
+mkdir -p $log_folder
+echo "Getting logs from clients.."    
+res_ClientDetails=(`cat  ClientDetails.txt`)
+count=0
+while [ "x${res_ClientDetails[$count]}" != "x" ]
+do
+    ssh ${res_ClientDetails[$count]} 'hostname' 
+    ssh  ${res_ClientDetails[$count]} "bash /home/orcasql/W/RunTest.sh"
+    scp ${res_ClientDetails[$count]}:/home/orcasql/W/Last* $log_folder/ 
+    ((count++))
+done
+echo "Getting logs from clients.. done!"    
+
 ParseAll
+
+if [ ! -d OldLogs ]; then
+    mkdir -p OldLogs
+fi
+
+mv $log_folder OldLogs/$log_folder
+

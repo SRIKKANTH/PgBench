@@ -4,6 +4,7 @@
 # Author: Srikanth Myakam
 # Email	: 
 ####
+export DEBUG=0
 
 function get_Avg()
 {
@@ -66,7 +67,7 @@ function Parse
     res_TPSExcludingConnEstablishing=(`grep "tps.*excluding connections establishing"  $log_file_name | awk '{print $3}'`)
     res_PgServer=(`grep  pgbench $log_file_name | sed "s_^.*postgres://__" | sed "s_:5432/postgres__"`)
     res_Duration=(`grep duration $log_file_name| awk '{print $2}'`)
-
+    
     echo "Iteration,ScalingFactor,Clients,Threads,TotalTransaction,AvgLatency,StdDevLatency,TPSIncConnEstablishing,TPSExcludingConnEstablishing,TransactionType,QueryMode,Duration,PgServer,Duration"  > $csv_file
 
     count=0
@@ -86,7 +87,8 @@ function Parse
     minMax_TPSExcludingConnEstablishing=`get_MinMax "${res_TPSExcludingConnEstablishing[@]}"`
 
     TotalExecutionDuration=`get_Sum "${res_Duration[@]}"`
-
+    DbInitializationDuration=`grep "tuples.*done" $log_file_name| tail -1| awk '{print $8 $9}'| sed s/,//`
+    
     echo "" > $csv_file-tmp
     echo ",ServerDetails" >> $csv_file-tmp
     ServerVcores=`grep ${res_PgServer[0]} ConnectionProperties.csv | sed "s/,/ /g"| awk '{print $6}'`
@@ -99,6 +101,7 @@ function Parse
     echo ",TPSExcludingConnEstablishing,$minMax_TPSExcludingConnEstablishing,$avg_TPSExcludingConnEstablishing" >> $csv_file-tmp
     echo "" >> $csv_file-tmp
     echo ",TotalExecutionDuration,$TotalExecutionDuration" >> $csv_file-tmp
+    echo ",DbInitializationDuration,$DbInitializationDuration" >> $csv_file-tmp
     echo "" >> $csv_file-tmp
     
     cat $csv_file >> $csv_file-tmp
@@ -150,8 +153,8 @@ function ParseAll()
 
     list=(`ls $log_folder/*.log`)
 
-    echo ",,ServerDetails,,,TPSIncConnEstablishing,,,TPSExcludingConnEstablishing,,,,Parameters" >> $SummaryCsv
-    echo ",Name,Vcores,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,ScalingFactor,Clients,Threads,TotalExecutionDuration" >> $SummaryCsv
+    echo ",,ServerDetails,,,TPS Including Connection Establishment,,,TPS Excluding Connection Establishment,,,Test Parameters,,Execution Durations" >> $SummaryCsv
+    echo ",Name,Vcores,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,ScalingFactor,Clients,Threads,TotalExecutionDuration,DbInitializationDuration" >> $SummaryCsv
     count=0
     while [ "x${list[$count]}" != "x" ]
     do
@@ -163,7 +166,8 @@ function ParseAll()
         TPSExcludingConnEstablishing=`grep TPSExcludingConnEstablishing $CsvFile  | head -1 | sed "s/,TPSExcludingConnEstablishing,//g"`
         Params=`grep $ServerName $CsvFile | tail -1| sed "s/,/ /g"| awk '{print $2,$3,$4}'| sed "s/ /,/g"`
         TotalExecutionDuration=`grep TotalExecutionDuration $CsvFile| awk -F"," '{print $3}'`
-        echo ",$ServerName,$ServerVcores,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$Params,$TotalExecutionDuration" >> $SummaryCsv
+        DbInitializationDuration=`grep DbInitializationDuration $CsvFile| awk -F"," '{print $3}'`
+        echo ",$ServerName,$ServerVcores,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$Params,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
 
         fileName=`basename $CsvFile`
         fileName=`echo $CsvFile |sed "s/$fileName/$ServerName\.csv/"`
@@ -194,9 +198,17 @@ function CheckDependencies()
         exit 1
     fi
 
-    if [ ! -f  ClientDetails.txt ]; then
-        echo "ERROR: ClientDetails.txt: File not found!"
+    if [ ! -d $log_folder ]; then
+        echo "ERROR: $log_folder: log_folder not found!"
         exit 1
+    fi
+
+    if [ $DEBUG == 0 ]
+    then
+        if [ ! -f  ClientDetails.txt ]; then
+            echo "ERROR: ClientDetails.txt: File not found!"
+            exit 1
+        fi
     fi
 
     if [[ `which bc` == "" ]]; then
@@ -210,8 +222,6 @@ function CheckDependencies()
         echo "INFO: mailutils: Trying to install!"
         apt-get install mailutils
     fi
-
-
 }
 
 ###############################################################
@@ -220,6 +230,16 @@ function CheckDependencies()
 ###############################################################
 CheckDependencies
 
+if [ $DEBUG != 0 ]
+then
+    log_folder=$1
+    if [ "$#" -ne 1 ]; then
+        echo "Usage: $0 <path to pgbench logs>" >&2
+        exit 1
+    fi
+    ParseAll
+    exit 1
+fi  
 log_folder=`date|sed "s/ /_/g"| sed "s/:/_/g"`
 mkdir -p $log_folder
 echo "Getting logs from clients.."    

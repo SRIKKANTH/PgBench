@@ -3,3 +3,5 @@ ReportResults.sh
 *.html
 *.awk
 Data/*
+*.csv
+*.txt

@@ -6,6 +6,8 @@
 ####
 export DEBUG=0
 
+TestDataFile=ConnectionProperties.csv
+
 function get_Avg()
 {
     inputArray=("$@")
@@ -140,11 +142,23 @@ function SendMail ()
 {
     MailBodyFile=$1
     Attachment=$2
-    
-    echo "Sending Email Report"
+    ReportEmail=$3
+
+    echo "Sending Email Report to $ReportEmail with $Attachment"
 
     Subject='PG synthetic workload report: '`date +%F`
-    mail  -a "From:Alfred" -a 'MIME-Version: 1.0' -a 'Content-Type: text/html; charset=iso-8859-1' -a 'X-AUTOR: Ing. Gareca' -s "$Subject" v-srm@microsoft.com -A $Attachment  < $MailBodyFile
+    mail  -a "From:Alfred" -a 'MIME-Version: 1.0' -a 'Content-Type: text/html; charset=iso-8859-1' -a 'X-AUTOR: Ing. Gareca' -s "$Subject" $ReportEmail -A $Attachment  < $MailBodyFile
+}
+
+function CopyToAzureStorageBlob ()
+{
+    FileToBeUploaded=$1
+    StorageAccountUrl=$2
+    DestinationKey=$3
+    
+    echo "FileToBeUploaded $FileToBeUploaded to $StorageAccountUrl$FileToBeUploaded with $DestinationKey"
+
+    yes|azcopy --source $FileToBeUploaded --destination $StorageAccountUrl$FileToBeUploaded --dest-key $DestinationKey
 }
 
 function ParseAll()
@@ -186,9 +200,16 @@ function ParseAll()
     mv $log_folder/*.csv $log_folder/CSVs/
     reportZipFile=`date|sed "s/ /_/g"| sed "s/:/_/g"`.zip
     zip -r $reportZipFile *.csv $log_folder/*
-    SendMail $htmlFile $reportZipFile 
+
+    StorageAccountUrl=`grep "StorageAccountUrl" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    DestinationKey=`grep "DestinationKey" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    ReportEmail=`grep "ReportEmail" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+
+    SendMail $htmlFile $reportZipFile $ReportEmail
+    
+    CopyToAzureStorageBlob $reportZipFile $StorageAccountUrl $DestinationKey
+
     echo "Parsing done!"
-    #echo "Summary File: $SummaryCsv"
 }
 
 function CheckDependencies()
@@ -242,9 +263,12 @@ then
 fi  
 log_folder=`date|sed "s/ /_/g"| sed "s/:/_/g"`
 mkdir -p $log_folder
-echo "Getting logs from clients.."    
-res_ClientDetails=(`cat  ClientDetails.txt`)
-count=0
+echo "Getting logs from clients.."
+TestDataFile='ConnectionProperties.csv'
+
+res_ClientDetails=$(`cat $TestDataFile | sed "s/,/ /g"| awk '{print $7}'`)
+
+count=1
 while [ "x${res_ClientDetails[$count]}" != "x" ]
 do
     ssh ${res_ClientDetails[$count]} 'hostname' 

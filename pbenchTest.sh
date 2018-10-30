@@ -4,10 +4,12 @@ Duration=1800
 UserName="pgadmin"
 PassWord="pgadmin123!@#"
 
-Server=$(grep "`hostname`," ConnectionProperties.csv | sed "s/,/ /g"| awk '{print $2}')
-ScaleFactor=$(grep "`hostname`," ConnectionProperties.csv | sed "s/,/ /g"| awk '{print $3}')
-Connections=$(grep "`hostname`," ConnectionProperties.csv | sed "s/,/ /g"| awk '{print $4}')
-Threads=$(grep "`hostname`," ConnectionProperties.csv | sed "s/,/ /g"| awk '{print $5}')
+TestDataFile='ConnectionProperties.csv'
+
+Server=$(grep "`hostname`," $TestDataFile | sed "s/,/ /g"| awk '{print $2}')
+ScaleFactor=$(grep "`hostname`," $TestDataFile | sed "s/,/ /g"| awk '{print $3}')
+Connections=$(grep "`hostname`," $TestDataFile | sed "s/,/ /g"| awk '{print $4}')
+Threads=$(grep "`hostname`," $TestDataFile | sed "s/,/ /g"| awk '{print $5}')
 
 echo "-------- Initializing db... -------- `date`"
     

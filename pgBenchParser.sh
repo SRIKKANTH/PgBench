@@ -209,6 +209,8 @@ function ParseAll()
     
     CopyToAzureStorageBlob $reportZipFile $StorageAccountUrl $DestinationKey
 
+    mv $reportZipFile OldLogs/
+    
     echo "Parsing done!"
 }
 

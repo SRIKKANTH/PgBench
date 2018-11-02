@@ -15,7 +15,7 @@ function get_Avg()
     sum=$( IFS="+"; bc <<< "${inputArray[*]}" )
     unset IFS
     average=`echo $sum/$count|bc -l`
-    printf "%.3f\n" $average
+    printf "%.1f\n" $average
 }
 
 function get_Sum()
@@ -37,6 +37,25 @@ function get_MinMax()
     min=`printf "%.3f\n" ${sorted[0]}`
     max=`printf "%.3f\n" ${sorted[$lastIndex]}`
     echo "$min,$max"
+}
+
+function get_Column_Avg()
+{
+    local filename=$1
+    local results
+    columns=`tail -1 $filename |wc -w`
+    i=0
+    for j in $(seq 1 $columns)
+    do
+        results[$i]=`get_Avg $(cat $filename | awk -vcol=$j '{print $col}')`
+        ((i++))
+    done
+    echo ${results[*]}| sed 's/ /,/g'
+}
+
+function get_Percentage ()
+{
+    printf "%.2f\n" `echo 100*$1/$2 |bc -l`
 }
 
 function Parse
@@ -67,16 +86,21 @@ function Parse
     res_StdDevLatency=(`grep "latency stddev: "  $log_file_name | sed "s/latency stddev: //"|sed "s/ //g"`)
     res_TPSIncConnEstablishing=(`grep "tps.*including connections establishing"  $log_file_name | awk '{print $3}'`)
     res_TPSExcludingConnEstablishing=(`grep "tps.*excluding connections establishing"  $log_file_name | awk '{print $3}'`)
-    res_PgServer=(`grep  pgbench $log_file_name | sed "s_^.*postgres://__" | sed "s_:5432/postgres__"`)
+    res_PgServer=(`grep  PGPASSWORD.*pgbench.*postgres:// $log_file_name | sed "s_^.*postgres://__" | sed "s_:5432/postgres__"`)
     res_Duration=(`grep duration $log_file_name| awk '{print $2}'`)
     
-    echo "Iteration,ScalingFactor,Clients,Threads,TotalTransaction,AvgLatency,StdDevLatency,TPSIncConnEstablishing,TPSExcludingConnEstablishing,TransactionType,QueryMode,Duration,PgServer,Duration"  > $csv_file
+    res_OsMemoryStats=(`grep "Memory stats OS" $log_file_name | sed "s/^.*:  //"`)
+    res_OsCpuUsage=(`grep "CPU usage (OS)" $log_file_name | sed "s/^.*:  //"`)
+    res_PgBenchClientConnections=(`grep "Connections" $log_file_name | sed "s/^.*:  //"`)
+    res_PgBenchCpuMemUtilization=(`grep "CPU,MEM usage (pgbench)" $log_file_name | sed "s/^.*:  //"`)
+
+    echo "Iteration,ScalingFactor,Clients,Threads,TotalTransaction,AvgLatency,StdDevLatency,TPSIncConnEstablishing,TPSExcludingConnEstablishing,TransactionType,QueryMode,Duration,ClientOsMemoryStats-Total,ClientOsMemoryStats-Used,ClientOsMemoryStats-Free,ClientOsCpuUsage,PgBenchClientConnections,PgBenchCpuUsage,PgBenchMemUsage,PgServer,"  > $csv_file
 
     count=0
 
     while [ "x${res_ScalingFactor[$count]}" != "x" ]
     do
-        echo "${res_Iteration[$count]},${res_ScalingFactor[$count]},${res_Clients[$count]},${res_Threads[$count]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_PgServer[$count]},${res_Duration[$count]}"  >> $csv_file
+        echo "${res_Iteration[$count]},${res_ScalingFactor[$count]},${res_Clients[$count]},${res_Threads[$count]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchClientConnections[$count]},${res_PgBenchCpuMemUtilization[$count]},${res_PgServer[$count]}"  >> $csv_file
         ((count++))
     done
 
@@ -89,7 +113,22 @@ function Parse
     minMax_TPSExcludingConnEstablishing=`get_MinMax "${res_TPSExcludingConnEstablishing[@]}"`
 
     TotalExecutionDuration=`get_Sum "${res_Duration[@]}"`
-    DbInitializationDuration=`grep "tuples.*done" $log_file_name| tail -1| awk '{print $8 $9}'| sed s/,//`
+    #DbInitializationDuration=`grep "tuples.*done" $log_file_name| tail -1| awk '{print $8 $9}'| sed s/,//`
+    DbInitializationDuration=`grep "Initializing .*Done" $log_file_name | awk '{print $6}'`
+
+    # Parsing Client stats
+    grep "Memory stats OS" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
+    avg_OsMemoryStats=`get_Column_Avg /tmp/ClientStats.tmp`
+    
+    tmp_array=(`echo $avg_OsMemoryStats| sed 's/,/ /g'`)
+    OsMemoryUsage=`get_Percentage ${array[1]} ${array[0]}` 
+    
+    grep "CPU usage (OS)" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
+    avg_OsCpuUsage=`get_Column_Avg /tmp/ClientStats.tmp`
+    grep "Connections" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
+    avg_PgBenchClientConnections=`get_Column_Avg /tmp/ClientStats.tmp`
+    grep "CPU,MEM usage (pgbench)" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
+    avg_PgBenchCpuMemUtilization=(`get_Column_Avg /tmp/ClientStats.tmp| sed 's/,/ /g'`)
     
     echo "" > $csv_file-tmp
     echo ",ServerDetails" >> $csv_file-tmp
@@ -97,7 +136,7 @@ function Parse
     ServerName=`echo ${res_PgServer[0]} | sed "s/-pip.*//"`
     echo ",ServerVcores,$ServerVcores" >> $csv_file-tmp
     echo ",ServerName,$ServerName" >> $csv_file-tmp
-    echo "" >> $csv_file-tmp
+    echo ",ServerStats" >> $csv_file-tmp
     echo ",,Min TPS,Max TPS,Average TPS" >> $csv_file-tmp
     echo ",TPSIncConnEstablishing,$minMax_TPSIncConnEstablishing,$avg_TPSIncConnEstablishing" >> $csv_file-tmp
     echo ",TPSExcludingConnEstablishing,$minMax_TPSExcludingConnEstablishing,$avg_TPSExcludingConnEstablishing" >> $csv_file-tmp
@@ -105,7 +144,16 @@ function Parse
     echo ",TotalExecutionDuration,$TotalExecutionDuration" >> $csv_file-tmp
     echo ",DbInitializationDuration,$DbInitializationDuration" >> $csv_file-tmp
     echo "" >> $csv_file-tmp
-    
+    echo ",ClientStats" >> $csv_file-tmp
+    echo ",ClientOsCpuUtilization,$avg_OsCpuUsage" >> $csv_file-tmp
+    echo ",ClientOsMemoryUtilization,$OsMemoryUsage" >> $csv_file-tmp
+    echo ",PgBenchClientConnections,$avg_PgBenchClientConnections" >> $csv_file-tmp
+    echo ",PgBenchCpuUtilization,${avg_PgBenchCpuMemUtilization[0]}" >> $csv_file-tmp
+    echo ",PgBenchMemUtilization,${avg_PgBenchCpuMemUtilization[1]}" >> $csv_file-tmp
+    echo ",,Total,Used,Free" >> $csv_file-tmp
+    echo ",OsMemoryUtilization,$avg_OsMemoryStats" >> $csv_file-tmp
+    echo "" >> $csv_file-tmp
+
     cat $csv_file >> $csv_file-tmp
     mv $csv_file-tmp $csv_file
 
@@ -167,8 +215,8 @@ function ParseAll()
 
     list=(`ls $log_folder/*.log`)
 
-    echo ",,ServerDetails,,,TPS Including Connection Establishment,,,TPS Excluding Connection Establishment,,,Test Parameters,,Execution Durations" >> $SummaryCsv
-    echo ",Name,Vcores,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,ScalingFactor,Clients,Threads,TotalExecutionDuration,DbInitializationDuration" >> $SummaryCsv
+    echo ",,ServerDetails,,,TPS Including Connection Establishment,,,TPS Excluding Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" >> $SummaryCsv
+    echo ",Name,Vcores,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecutionDuration,DbInitializationDuration" >> $SummaryCsv
     count=0
     while [ "x${list[$count]}" != "x" ]
     do
@@ -181,7 +229,13 @@ function ParseAll()
         Params=`grep $ServerName $CsvFile | tail -1| sed "s/,/ /g"| awk '{print $2,$3,$4}'| sed "s/ /,/g"`
         TotalExecutionDuration=`grep TotalExecutionDuration $CsvFile| awk -F"," '{print $3}'`
         DbInitializationDuration=`grep DbInitializationDuration $CsvFile| awk -F"," '{print $3}'`
-        echo ",$ServerName,$ServerVcores,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$Params,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
+        OsMemoryUtilization=`grep ClientOsMemoryUtilization $CsvFile| awk -F"," '{print $3}'`
+        OsCpuUtilization=`grep ClientOsCpuUtilization $CsvFile| awk -F"," '{print $3}'`
+        PgBenchCpuUtilization=`grep PgBenchCpuUtilization $CsvFile| awk -F"," '{print $3}'`
+        PgBenchMemoryUtilization=`grep PgBenchMemUtilization $CsvFile| awk -F"," '{print $3}'`
+        PgBenchActiveConnections=`grep PgBenchClientConnections $CsvFile | head -1| awk -F"," '{print $3}'| sed "s/\..*//"`
+        
+        echo ",$ServerName,$ServerVcores,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$Params,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
 
         fileName=`basename $CsvFile`
         fileName=`echo $CsvFile |sed "s/$fileName/$ServerName\.csv/"`
@@ -199,7 +253,7 @@ function ParseAll()
     mkdir -p $log_folder/CSVs
     mv $log_folder/*.csv $log_folder/CSVs/
     reportZipFile=`date|sed "s/ /_/g"| sed "s/:/_/g"`.zip
-    zip -r $reportZipFile *.csv $log_folder/*
+    zip -r $reportZipFile $log_folder/*
 
     StorageAccountUrl=`grep "StorageAccountUrl" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
     DestinationKey=`grep "DestinationKey" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
@@ -253,6 +307,8 @@ function CheckDependencies()
 ###############################################################
 CheckDependencies
 
+[ ! -d OldLogs  ] && mkdir OldLogs
+
 if [ $DEBUG != 0 ]
 then
     log_folder=$1
@@ -268,14 +324,15 @@ mkdir -p $log_folder
 echo "Getting logs from clients.."
 TestDataFile='ConnectionProperties.csv'
 
-res_ClientDetails=$(`cat $TestDataFile | sed "s/,/ /g"| awk '{print $7}'`)
+res_ClientDetails=(`cat $TestDataFile | sed "s/,/ /g"| awk '{print $7}'`)
 
 count=1
 while [ "x${res_ClientDetails[$count]}" != "x" ]
 do
     ssh ${res_ClientDetails[$count]} 'hostname' 
-    ssh  ${res_ClientDetails[$count]} "bash /home/orcasql/W/RunTest.sh"
-    scp ${res_ClientDetails[$count]}:/home/orcasql/W/Last* $log_folder/ 
+    ssh ${res_ClientDetails[$count]} "bash /home/orcasql/W/RunTest.sh"
+    scp ${res_ClientDetails[$count]}:/home/orcasql/W/Logs/* $log_folder/ 
+
     ((count++))
 done
 echo "Getting logs from clients.. done!"    

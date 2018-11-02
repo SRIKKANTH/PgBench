@@ -2,5 +2,5 @@
 pkill pbenchTest
 pkill pgbench
 cd /home/orcasql/W/
-
-nohup ./pbenchTest.sh > RunLog.log 2>&1 &
+LogFile=RunLog.log
+nohup ./pbenchTest.sh > $LogFile 2>&1 &

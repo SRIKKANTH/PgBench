@@ -1,6 +1,6 @@
 #!/bin/bash
 set +H
-Duration=60
+Duration=1800
 TestDataFile='ConnectionProperties.csv'
 
 capture_duration=$((Duration -30))

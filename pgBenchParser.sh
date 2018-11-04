@@ -213,10 +213,10 @@ function ParseAll()
 {
     SummaryCsv="$log_folder/Summary.csv"
 
-    list=(`ls $log_folder/*.log`)
+    list=(`ls $log_folder/*.log | grep -v dmesg`)
 
-    echo ",,ServerDetails,,,TPS Including Connection Establishment,,,TPS Excluding Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" >> $SummaryCsv
-    echo ",Name,Vcores,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecutionDuration,DbInitializationDuration" >> $SummaryCsv
+    echo ",TestType,,ServerDetails,,,TPS Including Connection Establishment,,,TPS Excluding Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" >> $SummaryCsv
+    echo ",TestType,Name,Vcores,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecutionDuration,DbInitializationDuration" >> $SummaryCsv
     count=0
     while [ "x${list[$count]}" != "x" ]
     do
@@ -234,8 +234,8 @@ function ParseAll()
         PgBenchCpuUtilization=`grep PgBenchCpuUtilization $CsvFile| awk -F"," '{print $3}'`
         PgBenchMemoryUtilization=`grep PgBenchMemUtilization $CsvFile| awk -F"," '{print $3}'`
         PgBenchActiveConnections=`grep PgBenchClientConnections $CsvFile | head -1| awk -F"," '{print $3}'| sed "s/\..*//"`
-        
-        echo ",$ServerName,$ServerVcores,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$Params,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
+        TestType=`grep $ServerName  ConnectionProperties.csv| awk -F"," '{print $8}'`
+        echo ",$TestType,$ServerName,$ServerVcores,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$Params,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
 
         fileName=`basename $CsvFile`
         fileName=`echo $CsvFile |sed "s/$fileName/$ServerName\.csv/"`
@@ -280,14 +280,6 @@ function CheckDependencies()
         exit 1
     fi
 
-    if [ $DEBUG == 0 ]
-    then
-        if [ ! -f  ClientDetails.txt ]; then
-            echo "ERROR: ClientDetails.txt: File not found!"
-            exit 1
-        fi
-    fi
-
     if [[ `which bc` == "" ]]; then
         echo "INFO: bc: not installed!"
         echo "INFO: bc: Trying to install!"
@@ -330,9 +322,9 @@ count=1
 while [ "x${res_ClientDetails[$count]}" != "x" ]
 do
     ssh ${res_ClientDetails[$count]} 'hostname' 
-    ssh ${res_ClientDetails[$count]} "bash /home/orcasql/W/RunTest.sh"
     scp ${res_ClientDetails[$count]}:/home/orcasql/W/Logs/* $log_folder/ 
-
+    ssh ${res_ClientDetails[$count]} "bash /home/orcasql/W/RunTest.sh"
+    
     ((count++))
 done
 echo "Getting logs from clients.. done!"    

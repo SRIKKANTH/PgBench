@@ -77,8 +77,6 @@ get_Column_Avg()
 
 pgBenchTest ()
 {
-    ulimit -u unlimited
-
     TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
 
     Server=${TestData[1]}
@@ -144,7 +142,7 @@ pgBenchTest ()
         echo "CPU usage (OS): " `get_Column_Avg $capture_cpu_SystemFile`
         echo "CPU,MEM usage (pgbench): " `get_Column_Avg $capture_cpu_PgBenchFile`
 
-        dmesg > $filetag-dmesg.log 
+        #dmesg > $filetag-dmesg.log 
         
         echo "-------- End of the test iteration: $Iteration -------- "
 

@@ -87,6 +87,12 @@ pgBenchTest ()
     UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
     PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
 
+    echo "-------- Client Machine Details -------- `date`"
+    echo "VMcores: "`nproc`
+    echo "TotalMemory: "`free -h|grep Mem|awk '{print $2}'`
+    echo "KernelVersion: "`uname -r`
+    echo "OSVersion: "`lsb_release -a 2>/dev/null |grep Description| sed 's/Description://'|sed 's/\s//'|sed 's/\s/_/g'`
+    echo "HostVersion: "`dmesg | grep "Host Build" | sed "s/.*Host Build://"| awk '{print  $1}'| sed "s/;//"`
     echo "-------- Initializing db... -------- `date`"
         
     echo "PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres"

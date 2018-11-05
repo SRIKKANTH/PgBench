@@ -1,3 +1,19 @@
+function FixValue()
+{
+    if [ "x$1" != "x"  ]
+    then
+        echo $1
+    else
+        echo -
+    fi
+}
+FixValue asdad
+FixValue ""
+FixValue asdad
+echo $(FixValue `grep srmPGPtest16 ClientDetails.txt`),$(FixValue `grep srmPGPerftest16 ClientDetails.txt`)
+echo $(FixValue `grep srmPGPtest16 ClientDetails.txt`)
+
+
 function TestServers()
 {
 TestDataFile='ConnectionProperties.csv'
@@ -17,6 +33,8 @@ psql -U $UserName  -h $Server -p 5432 -d postgres
 }
 
 
+
+{ 
 res_ClientDetails=(`cat  ClientDetails.txt`)
 count=0
 while [ "x${res_ClientDetails[$count]}" != "x" ]
@@ -25,4 +43,4 @@ do
     ssh ${res_ClientDetails[$count]} hostname
     ((count++))
 done
-
+}

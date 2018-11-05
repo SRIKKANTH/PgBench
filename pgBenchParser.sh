@@ -4,7 +4,7 @@
 # Author: Srikanth Myakam
 # Email	: 
 ####
-export DEBUG=0
+export DEBUG=1
 
 TestDataFile=ConnectionProperties.csv
 
@@ -89,6 +89,8 @@ function Parse
     res_PgServer=(`grep  PGPASSWORD.*pgbench.*postgres:// $log_file_name | sed "s_^.*postgres://__" | sed "s_:5432/postgres__"`)
     res_Duration=(`grep duration $log_file_name| awk '{print $2}'`)
     
+    VmVcores=`grep "VMcores" $log_file_name| awk '{print $2}'`
+
     res_OsMemoryStats=(`grep "Memory stats OS" $log_file_name | sed "s/^.*:  //"`)
     res_OsCpuUsage=(`grep "CPU usage (OS)" $log_file_name | sed "s/^.*:  //"`)
     res_PgBenchClientConnections=(`grep "Connections" $log_file_name | sed "s/^.*:  //"`)
@@ -113,7 +115,6 @@ function Parse
     minMax_TPSExcludingConnEstablishing=`get_MinMax "${res_TPSExcludingConnEstablishing[@]}"`
 
     TotalExecutionDuration=`get_Sum "${res_Duration[@]}"`
-    #DbInitializationDuration=`grep "tuples.*done" $log_file_name| tail -1| awk '{print $8 $9}'| sed s/,//`
     DbInitializationDuration=`grep "Initializing .*Done" $log_file_name | awk '{print $6}'`
 
     # Parsing Client stats
@@ -121,8 +122,9 @@ function Parse
     avg_OsMemoryStats=`get_Column_Avg /tmp/ClientStats.tmp`
     
     tmp_array=(`echo $avg_OsMemoryStats| sed 's/,/ /g'`)
-    OsMemoryUsage=`get_Percentage ${tmp_array[1]} ${tmp_array[0]}` 
-    
+    VmTotalMem=${tmp_array[0]}
+    OsMemoryUsage=`get_Percentage ${tmp_array[1]} ${tmp_array[0]}`
+
     grep "CPU usage (OS)" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
     avg_OsCpuUsage=`get_Column_Avg /tmp/ClientStats.tmp`
     grep "Connections" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
@@ -131,11 +133,12 @@ function Parse
     avg_PgBenchCpuMemUtilization=(`get_Column_Avg /tmp/ClientStats.tmp| sed 's/,/ /g'`)
     
     echo "" > $csv_file-tmp
-    echo ",ServerDetails" >> $csv_file-tmp
+    echo ",ServerConfiguration" >> $csv_file-tmp
     ServerVcores=`grep ${res_PgServer[0]} ConnectionProperties.csv | sed "s/,/ /g"| awk '{print $6}'`
     ServerName=`echo ${res_PgServer[0]} | sed "s/-pip.*//"`
     echo ",ServerVcores,$ServerVcores" >> $csv_file-tmp
     echo ",ServerName,$ServerName" >> $csv_file-tmp
+    echo "" >> $csv_file-tmp
     echo ",ServerStats" >> $csv_file-tmp
     echo ",,Min TPS,Max TPS,Average TPS" >> $csv_file-tmp
     echo ",TPSIncConnEstablishing,$minMax_TPSIncConnEstablishing,$avg_TPSIncConnEstablishing" >> $csv_file-tmp
@@ -143,6 +146,10 @@ function Parse
     echo "" >> $csv_file-tmp
     echo ",TotalExecutionDuration,$TotalExecutionDuration" >> $csv_file-tmp
     echo ",DbInitializationDuration,$DbInitializationDuration" >> $csv_file-tmp
+    echo "" >> $csv_file-tmp
+    echo ",ClientConfiguration" >> $csv_file-tmp
+    echo ",VmTotalMemory,$VmTotalMem" >> $csv_file-tmp
+    echo ",VmVcores,$VmVcores" >> $csv_file-tmp
     echo "" >> $csv_file-tmp
     echo ",ClientStats" >> $csv_file-tmp
     echo ",ClientOsCpuUtilization,$avg_OsCpuUsage" >> $csv_file-tmp
@@ -261,10 +268,12 @@ function ParseAll()
 
     SendMail $htmlFile $reportZipFile $ReportEmail
     
-    CopyToAzureStorageBlob $reportZipFile $StorageAccountUrl $DestinationKey
+    if [ $DEBUG == 0 ]
+    then
+        CopyToAzureStorageBlob $reportZipFile $StorageAccountUrl $DestinationKey
+        mv $reportZipFile OldLogs/
+    fi
 
-    mv $reportZipFile OldLogs/
-    
     echo "Parsing done!"
 }
 

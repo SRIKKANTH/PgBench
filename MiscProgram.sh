@@ -15,3 +15,14 @@ echo $UserName $PassWord $Server
 
 psql -U $UserName  -h $Server -p 5432 -d postgres
 }
+
+
+res_ClientDetails=(`cat  ClientDetails.txt`)
+count=0
+while [ "x${res_ClientDetails[$count]}" != "x" ]
+do
+    #cat ~/.ssh/id_rsa.pub | ssh ${res_ClientDetails[$count]} 'cat >> .ssh/authorized_keys'
+    ssh ${res_ClientDetails[$count]} hostname
+    ((count++))
+done
+

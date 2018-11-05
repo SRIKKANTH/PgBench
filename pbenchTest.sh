@@ -58,7 +58,7 @@ get_Avg()
     sum=$( IFS="+"; bc <<< "${inputArray[*]}" )
     unset IFS
     average=`echo $sum/$count|bc -l`
-    printf "%.1f\n" $average
+    printf "%.3f\n" $average
 }
 
 get_Column_Avg()

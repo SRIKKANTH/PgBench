@@ -15,7 +15,7 @@ function get_Avg()
     sum=$( IFS="+"; bc <<< "${inputArray[*]}" )
     unset IFS
     average=`echo $sum/$count|bc -l`
-    printf "%.1f\n" $average
+    printf "%.3f\n" $average
 }
 
 function get_Sum()
@@ -55,7 +55,7 @@ function get_Column_Avg()
 
 function get_Percentage ()
 {
-    printf "%.2f\n" `echo 100*$1/$2 |bc -l`
+    printf "%.3f\n" `echo 100*$1/$2 |bc -l`
 }
 
 function Parse
@@ -121,7 +121,7 @@ function Parse
     avg_OsMemoryStats=`get_Column_Avg /tmp/ClientStats.tmp`
     
     tmp_array=(`echo $avg_OsMemoryStats| sed 's/,/ /g'`)
-    OsMemoryUsage=`get_Percentage ${array[1]} ${array[0]}` 
+    OsMemoryUsage=`get_Percentage ${tmp_array[1]} ${tmp_array[0]}` 
     
     grep "CPU usage (OS)" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
     avg_OsCpuUsage=`get_Column_Avg /tmp/ClientStats.tmp`
@@ -216,7 +216,7 @@ function ParseAll()
     list=(`ls $log_folder/*.log | grep -v dmesg`)
 
     echo ",TestType,,ServerDetails,,,TPS Including Connection Establishment,,,TPS Excluding Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" >> $SummaryCsv
-    echo ",TestType,Name,Vcores,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecutionDuration,DbInitializationDuration" >> $SummaryCsv
+    echo ",TestType,Name,Vcores,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
     count=0
     while [ "x${list[$count]}" != "x" ]
     do
@@ -283,13 +283,13 @@ function CheckDependencies()
     if [[ `which bc` == "" ]]; then
         echo "INFO: bc: not installed!"
         echo "INFO: bc: Trying to install!"
-        apt install bc -y
+        sudo apt install bc -y
     fi
     
     if [[ `dpkg -l | grep mailutils| wc -l` == "0" ]]; then
         echo "INFO: mailutils: not installed!"
         echo "INFO: mailutils: Trying to install!"
-        apt-get install mailutils
+        sudo apt-get install mailutils
     fi
 }
 

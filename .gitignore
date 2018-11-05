@@ -6,3 +6,4 @@ Data/*
 *.csv
 *.txt
 SarTop_v2.sh
+*.ps1

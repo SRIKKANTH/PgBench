@@ -2,13 +2,6 @@
 set +H
 Duration=1800
 TestDataFile='ConnectionProperties.csv'
-PerformanceTestMode="performance"
-
-TestMode=LH
-if [ $# -gt 0 ]; then
-    TestMode=$1
-fi
-echo "Executing test in $TestMode mode"
 
 capture_duration=$((Duration -30))
 filetag=Logs/LogFile_`hostname`
@@ -86,10 +79,28 @@ pgBenchTest ()
 {
     TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
 
+    PerformanceTestMode="Performance"
+    LongHaulTestMode="LongHaul"
+    
+    TestMode=$LongHaulTestMode
+    
+    [[ $(grep `hostname` $TestDataFile) =~ $LongHaulTestMode ]] && TestMode=$LongHaulTestMode
+    [[ $(grep `hostname` $TestDataFile) =~ $PerformanceTestMode ]] && TestMode=$PerformanceTestMode
+
+    echo "Executing test in $TestMode mode"
+
     Server=${TestData[1]}
     ScaleFactor=${TestData[2]}
     Connections=${TestData[3]}
     Threads=${TestData[4]}
+
+    if [ "x$Server" == "x"  ]
+    then
+        echo "Exiting the test as no config found for this server!"
+        exit 1
+    else
+        echo "TestMode: $TestMode"
+    fi
 
     UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
     PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
@@ -104,7 +115,7 @@ pgBenchTest ()
         
     echo "PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres"
     startTime=`date +%s`
-    PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres
+    PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres  2>&1
     endTime=`date +%s`
 
     echo ""
@@ -139,7 +150,7 @@ pgBenchTest ()
 
         echo "Executing: PGPASSWORD=$PassWord pgbench -P 30 -c $Connections -j $Threads -T $Duration -U pgadmin postgres://$Server:5432/postgres"
         
-        PGPASSWORD=$PassWord pgbench -P 60 -c $Connections -j $Threads -T $Duration -U pgadmin postgres://$Server:5432/postgres
+        PGPASSWORD=$PassWord pgbench -P 60 -c $Connections -j $Threads -T $Duration -U pgadmin postgres://$Server:5432/postgres 2>&1
         
         echo "Waiting for all procs to exit"
         for pid in ${pids[*]}
@@ -156,11 +167,13 @@ pgBenchTest ()
         echo "CPU,MEM usage (pgbench): " `get_Column_Avg $capture_cpu_PgBenchFile`
 
         #dmesg > $filetag-dmesg.log 
-        if [ $TestMode == $PerformanceTestMode ]; then
-            break
-        fi
+
         echo "-------- End of the test iteration: $Iteration -------- "
 
+        if [ $TestMode == $PerformanceTestMode ]; then
+        # 1 iteration is enough for PerformanceTest
+            break
+        fi
         Iteration=$((Iteration + 1))
     done
 }

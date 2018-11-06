@@ -135,8 +135,10 @@ function Parse
     echo "" > $csv_file-tmp
     echo ",ServerConfiguration" >> $csv_file-tmp
     ServerVcores=`grep ${res_PgServer[0]} ConnectionProperties.csv | sed "s/,/ /g"| awk '{print $6}'`
+    SpaceQuotaInMb=`grep ${res_PgServer[0]} ConnectionProperties.csv | sed "s/,/ /g"| awk '{print $7}'`
     ServerName=`echo ${res_PgServer[0]} | sed "s/-pip.*//"`
     echo ",ServerVcores,$ServerVcores" >> $csv_file-tmp
+    echo ",SpaceQuotaInMb,$SpaceQuotaInMb" >> $csv_file-tmp
     echo ",ServerName,$ServerName" >> $csv_file-tmp
     echo "" >> $csv_file-tmp
     echo ",ServerStats" >> $csv_file-tmp
@@ -222,14 +224,15 @@ function ParseAll()
 
     list=(`ls $log_folder/*.log | grep -v dmesg`)
 
-    echo ",TestType,,ServerDetails,,,TPS Including Connection Establishment,,,TPS Excluding Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" >> $SummaryCsv
-    echo ",TestType,Name,Vcores,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
+    echo ",TestType,,,ServerDetails,,,TPS Including Connection Establishment,,,TPS Excluding Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" >> $SummaryCsv
+    echo ",TestType,Name,Vcores,SpaceQuotaInMb,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
     count=0
     while [ "x${list[$count]}" != "x" ]
     do
         echo "Parsing ${list[$count]}.."
         CsvFile=`Parse ${list[$count]}`
         ServerVcores=`grep ServerVcores $CsvFile | sed "s/,/ /g"| awk '{print $2}'`
+        SpaceQuotaInMb=`grep SpaceQuotaInMb $CsvFile | sed "s/,/ /g"| awk '{print $2}'`
         ServerName=`grep ServerName $CsvFile | sed "s/,/ /g"| awk '{print $2}'`
         TPSIncConnEstablishing=`grep TPSIncConnEstablishing $CsvFile | head -1 | sed "s/,TPSIncConnEstablishing,//g"`
         TPSExcludingConnEstablishing=`grep TPSExcludingConnEstablishing $CsvFile  | head -1 | sed "s/,TPSExcludingConnEstablishing,//g"`
@@ -241,8 +244,9 @@ function ParseAll()
         PgBenchCpuUtilization=`grep PgBenchCpuUtilization $CsvFile| awk -F"," '{print $3}'`
         PgBenchMemoryUtilization=`grep PgBenchMemUtilization $CsvFile| awk -F"," '{print $3}'`
         PgBenchActiveConnections=`grep PgBenchClientConnections $CsvFile | head -1| awk -F"," '{print $3}'| sed "s/\..*//"`
-        TestType=`grep $ServerName  ConnectionProperties.csv| awk -F"," '{print $8}'`
-        echo ",$TestType,$ServerName,$ServerVcores,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$Params,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
+        TestType=`grep $ServerName  ConnectionProperties.csv| awk -F"," '{print $9}'`
+
+        echo ",$TestType,$ServerName,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$Params,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
 
         fileName=`basename $CsvFile`
         fileName=`echo $CsvFile |sed "s/$fileName/$ServerName\.csv/"`
@@ -325,13 +329,14 @@ mkdir -p $log_folder
 echo "Getting logs from clients.."
 TestDataFile='ConnectionProperties.csv'
 
-res_ClientDetails=(`cat $TestDataFile | sed "s/,/ /g"| awk '{print $7}'`)
+res_ClientDetails=(`cat $TestDataFile | sed "s/,/ /g"| awk '{print $8}'`)
 
 count=1
 while [ "x${res_ClientDetails[$count]}" != "x" ]
 do
     ssh ${res_ClientDetails[$count]} 'hostname' 
     scp ${res_ClientDetails[$count]}:/home/orcasql/W/Logs/* $log_folder/ 
+    scp ConnectionProperties.csv ${res_ClientDetails[$count]}:/home/orcasql/W/
     ssh ${res_ClientDetails[$count]} "bash /home/orcasql/W/RunTest.sh"
     
     ((count++))

@@ -1,3 +1,22 @@
+TestMode=LH
+if [ $# -gt 0 ]; then
+    TestMode=$1
+fi
+echo $TestMode
+
+echo "Starting the test.."
+Iteration=1
+while sleep  1
+do
+if [ $TestMode == "performance" ]; then
+    break
+fi
+echo "-------- End of the test iteration: $Iteration -------- "
+
+Iteration=$((Iteration + 1))
+done
+echo "End!"
+
 function FixValue()
 {
     if [ "x$1" != "x"  ]

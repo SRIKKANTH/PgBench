@@ -2,6 +2,13 @@
 set +H
 Duration=1800
 TestDataFile='ConnectionProperties.csv'
+PerformanceTestMode="performance"
+
+TestMode=LH
+if [ $# -gt 0 ]; then
+    TestMode=$1
+fi
+echo "Executing test in $TestMode mode"
 
 capture_duration=$((Duration -30))
 filetag=Logs/LogFile_`hostname`
@@ -149,7 +156,9 @@ pgBenchTest ()
         echo "CPU,MEM usage (pgbench): " `get_Column_Avg $capture_cpu_PgBenchFile`
 
         #dmesg > $filetag-dmesg.log 
-        
+        if [ $TestMode == $PerformanceTestMode ]; then
+            break
+        fi
         echo "-------- End of the test iteration: $Iteration -------- "
 
         Iteration=$((Iteration + 1))

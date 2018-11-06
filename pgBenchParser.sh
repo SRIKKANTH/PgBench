@@ -15,7 +15,7 @@ function get_Avg()
     sum=$( IFS="+"; bc <<< "${inputArray[*]}" )
     unset IFS
     average=`echo $sum/$count|bc -l`
-    printf "%.3f\n" $average
+    printf "%.1f\n" $average
 }
 
 function get_Sum()
@@ -34,8 +34,8 @@ function get_MinMax()
 
     IFS=$'\n' sorted=($(sort -n <<<"${inputArray[*]}"))
     unset IFS
-    min=`printf "%.3f\n" ${sorted[0]}`
-    max=`printf "%.3f\n" ${sorted[$lastIndex]}`
+    min=`printf "%.1f\n" ${sorted[0]}`
+    max=`printf "%.1f\n" ${sorted[$lastIndex]}`
     echo "$min,$max"
 }
 
@@ -55,7 +55,7 @@ function get_Column_Avg()
 
 function get_Percentage ()
 {
-    printf "%.3f\n" `echo 100*$1/$2 |bc -l`
+    printf "%.1f\n" `echo 100*$1/$2 |bc -l`
 }
 
 function Parse

@@ -1,3 +1,16 @@
+function CollectMachinesProperties
+{  
+echo "vCores: "`uname`
+echo "Disk:"
+df -h| grep datadrive
+if [ `lsmod | grep mlx| wc -l` -ge 1 ]
+then
+echo "AcceleratedNetwork Enabled"
+else
+echo "AcceleratedNetwork **NOT** Enabled"
+fi
+}
+----
 TestMode=LH
 if [ $# -gt 0 ]; then
     TestMode=$1
@@ -33,27 +46,40 @@ echo $(FixValue `grep srmPGPtest16 ClientDetails.txt`),$(FixValue `grep srmPGPer
 echo $(FixValue `grep srmPGPtest16 ClientDetails.txt`)
 
 
-function TestServers()
+function TestMyServer()
 {
 TestDataFile='ConnectionProperties.csv'
-TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
+UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
 
+Server=""
+ScaleFactor=""
+Connections=""
+Threads=""
+
+if [ $(grep "`hostname`," $TestDataFile| wc -l) -gt 1 ]
+then
+echo "you have more entries dude"
+
+else
+TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
 Server=${TestData[1]}
 ScaleFactor=${TestData[2]}
 Connections=${TestData[3]}
 Threads=${TestData[4]}
+fi
 
-UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
-PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
 
-echo $UserName $PassWord $Server
+#echo $UserName $PassWord $Server
 
-psql -U $UserName  -h $Server -p 5432 -d postgres
+pg_isready -U $UserName  -h $Server -p 5432 -d postgres
+#psql -U $UserName  -h $Server -p 5432 -d postgres
 }
 
 
 
 { 
+
 res_ClientDetails=(`cat  ClientDetails.txt`)
 count=0
 while [ "x${res_ClientDetails[$count]}" != "x" ]
@@ -62,4 +88,6 @@ do
     ssh ${res_ClientDetails[$count]} hostname
     ((count++))
 done
+
 }
+

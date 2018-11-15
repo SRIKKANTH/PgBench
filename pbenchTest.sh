@@ -148,9 +148,9 @@ pgBenchTest ()
             ((i++))
         done
 
-        echo "Executing: PGPASSWORD=$PassWord pgbench -P 30 -c $Connections -j $Threads -T $Duration -U pgadmin postgres://$Server:5432/postgres"
+        echo "Executing: PGPASSWORD=$PassWord pgbench -P 30 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/postgres"
         
-        PGPASSWORD=$PassWord pgbench -P 60 -c $Connections -j $Threads -T $Duration -U pgadmin postgres://$Server:5432/postgres 2>&1
+        PGPASSWORD=$PassWord pgbench -P 60 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/postgres 2>&1
         
         echo "Waiting for all procs to exit"
         for pid in ${pids[*]}

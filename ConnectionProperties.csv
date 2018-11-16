@@ -1,0 +1,32 @@
+StorageAccountUrl,<Azure storage StorageAccountUrl for pushing the logs>
+DestinationKey,<Azure storage account key>
+ReportEmail,<Email ID to report result>
+DbUserName,<DB login username>
+DbPassWord,<DB login password>
+ClientHostName,server,scale_factor,Connections,threads,vCores,ClientVM,TestType
+srmPGtest0,test16csasrv0-pip.ServerDomain.com,400,200,8,16,SlaveUserName@srmpgtest0.ClientDomain,LongHaul
+srmPGtest1,test16csasrv1-pip.ServerDomain.com,400,200,8,16,SlaveUserName@srmpgtest1.ClientDomain,LongHaul
+srmPGtest2,test2csasrv0-pip.ServerDomain.com,50,50,2,2,SlaveUserName@srmpgtest2.ClientDomain,LongHaul
+srmPGtest3,test2csasrv1-pip.ServerDomain.com,50,50,2,2,SlaveUserName@srmpgtest3.ClientDomain,LongHaul
+srmPGtest4,test32csasrv0-pip.ServerDomain.com,1000,256,8,32,SlaveUserName@srmpgtest4.ClientDomain,LongHaul
+srmPGtest5,test32csasrv1-pip.ServerDomain.com,1000,256,8,32,SlaveUserName@srmpgtest5.ClientDomain,LongHaul
+srmPGtest6,test4csasrv0-pip.ServerDomain.com,100,100,4,4,SlaveUserName@srmpgtest6.ClientDomain,LongHaul
+srmPGtest7,test4csasrv1-pip.ServerDomain.com,100,100,4,4,SlaveUserName@srmpgtest7.ServerDomain.com,LongHaul
+srmPGtest8,test8csasrv0-pip.ServerDomain.com,200,160,8,8,SlaveUserName@srmpgtest8.ServerDomain.com,LongHaul
+srmPGtest9,test8csasrv1-pip.ServerDomain.com,200,160,8,8,SlaveUserName@srmpgtest9.ServerDomain.com,LongHaul
+srmPGPerftest1,srmpgperfserver-1-pip.ServerDomain.com,50,50,2,2,SlaveUserName@srmPGPerftest1.ClientDomain,Performance
+srmPGPerftest2,srmpgperfserver-2-pip.ServerDomain.com,50,50,2,2,SlaveUserName@srmPGPerftest2.ClientDomain,Performance
+srmPGPerftest3,srmpgperfserver-3-pip.ServerDomain.com,50,50,2,2,SlaveUserName@srmPGPerftest3.ClientDomain,Performance
+srmPGPerftest4,srmpgperfserver-4-pip.ServerDomain.com,50,50,2,2,SlaveUserName@srmPGPerftest4.ClientDomain,Performance
+srmPGPerftest5,srmpgperfserver-5-pip.ServerDomain.com,50,50,2,2,SlaveUserName@srmPGPerftest5.ClientDomain,Performance
+srmPGPerftest6,srmpgperfserver-6-pip.ServerDomain.com,50,50,2,2,SlaveUserName@srmPGPerftest6.ClientDomain,Performance
+srmPGPerftest7,srmpgperfserver-7-pip.ServerDomain.com,50,50,2,8,SlaveUserName@srmPGPerftest7.ClientDomain,Performance
+srmPGPerftest8,srmpgperfserver-8-pip.ServerDomain.com,50,50,2,8,SlaveUserName@srmPGPerftest8.ClientDomain,Performance
+srmPGPerftest9,srmpgperfserver-9-pip.ServerDomain.com,50,50,2,8,SlaveUserName@srmPGPerftest9.ClientDomain,Performance
+srmPGPerftest10,srmpgperfserver-10-pip.ServerDomain.com,50,50,2,8,SlaveUserName@srmPGPerftest10.ClientDomain,Performance
+srmPGPerftest11,srmpgperfserver-11-pip.ServerDomain.com,50,50,2,16,SlaveUserName@srmPGPerftest11.ClientDomain,Performance
+srmPGPerftest12,srmpgperfserver-12-pip.ServerDomain.com,50,50,2,16,SlaveUserName@srmPGPerftest12.ClientDomain,Performance
+srmPGPerftest13,srmpgperfserver-13-pip.ServerDomain.com,50,50,2,16,SlaveUserName@srmPGPerftest13.ClientDomain,Performance
+srmPGPerftest14,srmpgperfserver-14-pip.ServerDomain.com,50,50,2,16,SlaveUserName@srmPGPerftest14.ClientDomain,Performance
+srmPGPerftest15,srmpgperfserver-15-pip.ServerDomain.com,50,50,2,32,SlaveUserName@srmPGPerftest15.ClientDomain,Performance
+srmPGPerftest16,srmpgperfserver-16-pip.ServerDomain.com,50,50,2,64,SlaveUserName@srmPGPerftest16.ClientDomain,Performance

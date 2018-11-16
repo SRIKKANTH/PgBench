@@ -4,7 +4,7 @@
 # Author: Srikanth Myakam
 # Email	: 
 ####
-export DEBUG=1
+export DEBUG=0
 
 TestDataFile=ConnectionProperties.csv
 

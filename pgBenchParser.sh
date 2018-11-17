@@ -34,8 +34,8 @@ function get_MinMax()
 
     IFS=$'\n' sorted=($(sort -n <<<"${inputArray[*]}"))
     unset IFS
-    min=`printf "%.1f\n" ${sorted[0]}`
-    max=`printf "%.1f\n" ${sorted[$lastIndex]}`
+    min=`printf "%.f\n" ${sorted[0]}`
+    max=`printf "%.f\n" ${sorted[$lastIndex]}`
     echo "$min,$max"
 }
 
@@ -108,8 +108,8 @@ function Parse
 
     total=$count
 
-    avg_TPSIncConnEstablishing=`get_Avg "${res_TPSIncConnEstablishing[@]}"`
-    avg_TPSExcludingConnEstablishing=`get_Avg "${res_TPSExcludingConnEstablishing[@]}"`
+    avg_TPSIncConnEstablishing=`get_Avg "${res_TPSIncConnEstablishing[@]}" | sed 's/\\.[0-9]*//'`
+    avg_TPSExcludingConnEstablishing=`get_Avg "${res_TPSExcludingConnEstablishing[@]}" | sed 's/\\.[0-9]*//'`
 
     minMax_TPSIncConnEstablishing=`get_MinMax "${res_TPSIncConnEstablishing[@]}"`
     minMax_TPSExcludingConnEstablishing=`get_MinMax "${res_TPSExcludingConnEstablishing[@]}"`
@@ -183,10 +183,10 @@ function CSV2Html()
             else{
                 if(count!=0){
                     count++
-                    print "<td colspan="count">"$i"</td>"
+                    print "<td align=center colspan="count">"$i"</td>"
                     count=0
                 }else{
-                    print "<td>" $i"</td>";
+                    print "<td align=center>" $i"</td>";
                 }            
             }       
         }

@@ -8,6 +8,16 @@ export DEBUG=0
 
 TestDataFile=ConnectionProperties.csv
 
+PerformanceTestMode="Performance"
+LongHaulTestMode="LongHaul"
+
+MatchingPattern="$PerformanceTestMode\|$LongHaulTestMode"
+
+function FixOutput ()
+{
+    [ -z "$1" ] && echo 0 || echo $1
+}
+
 function get_Avg()
 {
     inputArray=("$@")
@@ -76,12 +86,9 @@ function Parse
 
     res_Iteration=(`grep "Starting the test iteration"  $log_file_name | awk '{print $6}'`)
     res_TransactionType=(`grep "transaction type:"  $log_file_name| sed "s/transaction type://"|sed "s/ //"|sed "s/ /_/g"`)
-    #res_ScalingFactor=(`grep "scaling factor:"  $log_file_name | awk '{print $3}'`)
     res_ScalingFactor=(`grep  ScaleFactor: $log_file_name | awk '{print $2}'`)
     res_QueryMode=(`grep "query mode:"  $log_file_name | awk '{print $3}'`)
-    #res_Clients=(`grep "number of clients:"  $log_file_name | awk '{print $4}'`)
     res_Clients=(`grep  Clients: $log_file_name | awk '{print $2}'`)
-    #res_Threads=(`grep "number of threads:"  $log_file_name | awk '{print $4}'`)
     res_Threads=(`grep  Threads: $log_file_name | awk '{print $2}'`)
     res_Duration=(`grep "duration:"  $log_file_name| sed "s/duration: //"|sed "s/ //g"`)
     res_TotalTransaction=(`grep "number of transactions actually processed: "  $log_file_name | awk '{print $6}'`)
@@ -89,7 +96,6 @@ function Parse
     res_StdDevLatency=(`grep "latency stddev: "  $log_file_name | sed "s/latency stddev: //"|sed "s/ //g"`)
     res_TPSIncConnEstablishing=(`grep "tps.*including connections establishing"  $log_file_name | awk '{print $3}'`)
     res_TPSExcludingConnEstablishing=(`grep "tps.*excluding connections establishing"  $log_file_name | awk '{print $3}'`)
-    #res_PgServer=(`grep  PGPASSWORD.*pgbench.*postgres:// $log_file_name | sed "s_^.*postgres://__" | sed "s_:5432/postgres__"`)
     res_PgServer=(`grep  Server: $log_file_name | awk '{print $2}'`)
     res_Duration=(`grep duration $log_file_name| awk '{print $2}'`)
     
@@ -103,7 +109,6 @@ function Parse
     echo "Iteration,ScalingFactor,Clients,Threads,TotalTransaction,AvgLatency,StdDevLatency,TPSIncConnEstablishing,TPSExcludingConnEstablishing,TransactionType,QueryMode,Duration,ClientOsMemoryStats-Total,ClientOsMemoryStats-Used,ClientOsMemoryStats-Free,ClientOsCpuUsage,PgBenchClientConnections,PgBenchCpuUsage,PgBenchMemUsage,PgServer,"  > $csv_file
 
     count=0
-
     while [ "x${res_ScalingFactor[$count]}" != "x" ]
     do
         echo "${res_Iteration[$count]},${res_ScalingFactor[$count]},${res_Clients[$count]},${res_Threads[$count]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchClientConnections[$count]},${res_PgBenchCpuMemUtilization[$count]},${res_PgServer[$count]}"  >> $csv_file
@@ -166,6 +171,11 @@ function Parse
     echo ",,Total,Used,Free" >> $csv_file-tmp
     echo ",OsMemoryUtilization,$avg_OsMemoryStats" >> $csv_file-tmp
     echo "" >> $csv_file-tmp
+    echo ",TestParameters" >> $csv_file-tmp
+    echo ",ScaleFactor,${res_ScalingFactor[0]}" >> $csv_file-tmp
+    echo ",Clients,${res_Clients[0]}" >> $csv_file-tmp
+    echo ",Threads,${res_Threads[0]}" >> $csv_file-tmp
+    echo "" >> $csv_file-tmp
 
     cat $csv_file >> $csv_file-tmp
     mv $csv_file-tmp $csv_file
@@ -211,6 +221,21 @@ function SendMail ()
     mail  -a "From:Alfred" -a 'MIME-Version: 1.0' -a 'Content-Type: text/html; charset=iso-8859-1' -a 'X-AUTOR: Ing. Gareca' -s "$Subject" $ReportEmail -A $Attachment  < $MailBodyFile
 }
 
+function UploadStatsToLogsDB ()
+{
+    local ToLogsDbFileCsv=$1
+
+    LogsDbServer=`grep "LogsDbServer\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    LogsDbServerUsername=`grep "LogsDbServerUsername\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    LogsDbServerPassword=`grep "LogsDbServerPassword\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    LogsDataBase=`grep "LogsDataBase" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    LogsTableName=`grep "LogsTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    
+    echo "Pushing stats ($ToLogsDbFileCsv) to LogsDB '$LogsDbServer' into table '$LogsTableName'"
+
+    bcp $LogsTableName in $ToLogsDbFileCsv -S $LogsDbServer -U $LogsDbServerUsername -P $LogsDbServerPassword -d $LogsDataBase -c  -t ','
+}
+
 function CopyToAzureStorageBlob ()
 {
     FileToBeUploaded=$1
@@ -225,52 +250,60 @@ function CopyToAzureStorageBlob ()
 function ParseAll()
 {
     SummaryCsv="$log_folder/Summary.csv"
+    ToLogsDbFileCsv="$log_folder/ToLogsDbFileCsv.csv"
 
     list=(`ls $log_folder/*.log | grep -v dmesg`)
 
-    #echo ",TestType,,,ServerDetails,,,TPS Including Connection Establishment,,,TPS Excluding Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" >> $SummaryCsv
-    #echo ",TestType,Name,Vcores,SpaceQuotaInMb,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
+    echo "" > $ToLogsDbFileCsv
+    echo ",,,,,ServerDetails,,,TPS Including Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" > $SummaryCsv
+    echo ",TestType,ServerType,ServerName,Vcores,SpaceQuotaInMb,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
 
-    echo ",TestType,,,ServerDetails,,,TPS Including Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" >> $SummaryCsv
-    echo ",TestType,Name,Vcores,SpaceQuotaInMb,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
     count=0
     while [ "x${list[$count]}" != "x" ]
     do
         echo "Parsing ${list[$count]}.."
         CsvFile=`Parse ${list[$count]}`
-        ServerVcores=`grep ServerVcores $CsvFile | sed "s/,/ /g"| awk '{print $2}'`
-        SpaceQuotaInMb=`grep SpaceQuotaInMb $CsvFile | sed "s/,/ /g"| awk '{print $2}'`
-        ServerName=`grep ServerName $CsvFile | sed "s/,/ /g"| awk '{print $2}'`
-        TPSIncConnEstablishing=`grep TPSIncConnEstablishing $CsvFile | head -1 | sed "s/,TPSIncConnEstablishing,//g"`
-        TPSExcludingConnEstablishing=`grep TPSExcludingConnEstablishing $CsvFile  | head -1 | sed "s/,TPSExcludingConnEstablishing,//g"`
-        Params=`grep $ServerName $CsvFile | tail -1| sed "s/,/ /g"| awk '{print $2,$3,$4}'| sed "s/ /,/g"`
-        TotalExecutionDuration=`grep TotalExecutionDuration $CsvFile| awk -F"," '{print $3}'`
-        DbInitializationDuration=`grep DbInitializationDuration $CsvFile| awk -F"," '{print $3}'`
-        OsMemoryUtilization=`grep ClientOsMemoryUtilization $CsvFile| awk -F"," '{print $3}'`
-        OsCpuUtilization=`grep ClientOsCpuUtilization $CsvFile| awk -F"," '{print $3}'`
-        PgBenchCpuUtilization=`grep PgBenchCpuUtilization $CsvFile| awk -F"," '{print $3}'`
-        PgBenchMemoryUtilization=`grep PgBenchMemUtilization $CsvFile| awk -F"," '{print $3}'`
-        PgBenchActiveConnections=`grep PgBenchClientConnections $CsvFile | head -1| awk -F"," '{print $3}'| sed "s/\..*//"`
-        TestType=`grep $ServerName  $TestDataFile | awk -F"," '{print $9}'`
+        ServerVcores=$(FixOutput `grep ServerVcores $CsvFile | sed "s/,/ /g"| awk '{print $2}'` 0 )
+        SpaceQuotaInMb=$(FixOutput `grep SpaceQuotaInMb $CsvFile | sed "s/,/ /g"| awk '{print $2}'` 0 )
+        ServerName=$(FixOutput `grep ServerName $CsvFile | sed "s/,/ /g"| awk '{print $2}'` NA )
+        TPSIncConnEstablishing=$(FixOutput `grep TPSIncConnEstablishing $CsvFile | head -1 | sed "s/,TPSIncConnEstablishing,//g"` 0,0,0 )
+        TPSExcludingConnEstablishing=$(FixOutput `grep TPSExcludingConnEstablishing $CsvFile  | head -1 | sed "s/,TPSExcludingConnEstablishing,//g"` 0.0,0.0,0.0 )
+        TotalExecutionDuration=$(FixOutput `grep TotalExecutionDuration $CsvFile| awk -F"," '{print $3}'` 0 )
+        DbInitializationDuration=$(FixOutput `grep DbInitializationDuration $CsvFile| awk -F"," '{print $3}'` 0 )
+        OsMemoryUtilization=$(FixOutput `grep ClientOsMemoryUtilization $CsvFile| awk -F"," '{print $3}'` 0.0 )
+        OsCpuUtilization=$(FixOutput `grep ClientOsCpuUtilization $CsvFile| awk -F"," '{print $3}'` 0.0 )
+        PgBenchCpuUtilization=$(FixOutput `grep PgBenchCpuUtilization $CsvFile| awk -F"," '{print $3}'` 0.0 )
+        PgBenchMemoryUtilization=$(FixOutput `grep PgBenchMemUtilization $CsvFile| awk -F"," '{print $3}'` 0.0 )
+        PgBenchActiveConnections=$(FixOutput `grep PgBenchClientConnections $CsvFile | head -1| awk -F"," '{print $3}'| sed "s/\..*//"` 0 )
+        TestType=$(FixOutput `grep $ServerName  $TestDataFile | awk -F"," '{print $9}'` NA )
+        ServerType=$(FixOutput `grep $ServerName  $TestDataFile | awk -F"," '{print $10}'` NA )
+        
+        ScalingFactor=$(FixOutput `grep ScaleFactor $CsvFile | sed "s/,/ /g"| awk '{print $2}'` 0 )
+        Clients=$(FixOutput `grep Clients $CsvFile | sed "s/,/ /g"| awk '{print $2}'` 0 )
+        Threads=$(FixOutput `grep Threads $CsvFile | sed "s/,/ /g"| awk '{print $2}'` 0 )
+        ExecutedOn=`date "+%Y-%m-%d"`
 
-        #echo ",$TestType,$ServerName,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$Params,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
-        echo ",$TestType,$ServerName,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$Params,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
+        echo ",$TestType,$ServerType,$ServerName,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$ScalingFactor,$Clients,$Threads,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
+
+        echo ",$TestType,$ServerName,$ServerType,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$ServerOsCpuUtilization,$ServerOsMemoryUtilization,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$ScalingFactor,$Clients,$Threads,$TotalExecutionDuration,$DbInitializationDuration,$ExecutedOn" >> $ToLogsDbFileCsv
 
         fileName=`basename $CsvFile`
         fileName=`echo $CsvFile |sed "s/$fileName/$ServerName\.csv/"`
-        mv $CsvFile $fileName
+        mv -fu $CsvFile $fileName 2>/dev/null 
         
         fileName=`basename ${list[$count]}`
         fileName=`echo ${list[$count]} |sed "s/$fileName/$ServerName\.log/"`
-        mv ${list[$count]} $fileName
+        mv -fu ${list[$count]} $fileName 2>/dev/null 
 
         ((count++))
     done
 
+    UploadStatsToLogsDB $ToLogsDbFileCsv
+
     htmlFile=`CSV2Html $SummaryCsv`
     
     mkdir -p $log_folder/CSVs
-    mv $log_folder/*.csv $log_folder/CSVs/
+    mv -f $log_folder/*.csv $log_folder/CSVs/
     reportZipFile=`date|sed "s/ /_/g"| sed "s/:/_/g"`.zip
     zip -r $reportZipFile $log_folder/*
 
@@ -283,7 +316,7 @@ function ParseAll()
     if [ $DEBUG == 0 ]
     then
         CopyToAzureStorageBlob $reportZipFile $StorageAccountUrl $DestinationKey
-        mv $reportZipFile OldLogs/
+        mv -f $reportZipFile OldLogs/
     fi
 
     echo "Parsing done!"
@@ -314,6 +347,69 @@ function CheckDependencies()
     fi
 }
 
+function SetUpClients()
+{
+    TestDataFile='ConnectionProperties.csv'
+
+    ClientVMs=""
+
+    ClientVMs=($(grep -i "$MatchingPattern" $TestDataFile | sed "s/,/ /g" | awk '{print $8}'))
+    
+    count=0
+    while [ "x${ClientVMs[$count]}" != "x" ]
+    do
+        echo -e "ClientVM:\t"`ssh ${ClientVMs[$count]} hostname`
+        VMUser=`echo ${ClientVMs[$count]} | sed 's/@.*//'`
+            
+        ssh-copy-id -i ~/.ssh/id_rsa.pub ${ClientVMs[$count]} 2>/dev/null
+        ssh ${ClientVMs[$count]} "[ -d /home/$VMUser/W/Logs/ ] || mkdir -p /home/$VMUser/W/Logs/"
+
+        FileList=( pbenchTest.sh RunTest.sh $TestDataFile)
+
+        for FileToBeUploaded in "${FileList[@]}"
+        do
+            scp $FileToBeUploaded ${ClientVMs[$count]}:/home/$VMUser/W    
+        done
+
+        ssh ${ClientVMs[$count]} "chmod +x /home/$VMUser/W/*.sh"
+
+        echo "--------------------------------------------------------"
+        ((count++))
+    done
+}
+
+function TestAllServers()
+{
+    TestDataFile='ConnectionProperties.csv'
+
+    UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+    PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+
+    Server=""
+    ScaleFactor=""
+    Connections=""
+    Threads=""
+
+    Server=($(grep -i "$MatchingPattern" $TestDataFile | sed "s/,/ /g" | awk '{print $2}'))
+    ScaleFactor=($(grep -i "$MatchingPattern" $TestDataFile | sed "s/,/ /g" | awk '{print $3}'))
+    Connections=($(grep -i "$MatchingPattern" $TestDataFile | sed "s/,/ /g" | awk '{print $4}'))
+    Threads=($(grep -i "$MatchingPattern" $TestDataFile | sed "s/,/ /g" | awk '{print $5}'))
+    ClientVMs=($(grep -i "$MatchingPattern" $TestDataFile | sed "s/,/ /g" | awk '{print $8}'))
+
+    count=0
+    while [ "x${Server[$count]}" != "x" ]
+    do
+        echo -e "ClientVM:\t"`ssh ${ClientVMs[$count]} hostname`
+        echo -e "Server:\t${Server[$count]}"
+        echo -e "ScaleFactor:\t${ScaleFactor[$count]}"
+        echo -e "Connections:\t${Connections[$count]}"
+        echo -e "Threads:\t${Threads[$count]}"
+        pg_isready -U $UserName  -h ${Server[$count]} -p 5432 -d postgres
+        echo "--------------------------------------------------------"
+    ((count++))
+    done
+}
+
 ###############################################################
 ##
 ##              Script Execution Starts from here
@@ -332,21 +428,21 @@ then
     ParseAll
     exit 1
 fi
+
 log_folder=`date|sed "s/ /_/g"| sed "s/:/_/g"`
 mkdir -p $log_folder
 echo "Getting logs from clients.."
 TestDataFile='ConnectionProperties.csv'
 
-res_ClientDetails=(`cat $TestDataFile | sed "s/,/ /g"| awk '{print $8}'`)
+res_ClientDetails=($(grep -i "$MatchingPattern" $TestDataFile | sed "s/,/ /g" | awk '{print $8}'))
 
 count=1
 while [ "x${res_ClientDetails[$count]}" != "x" ]
 do
-    ssh ${res_ClientDetails[$count]} 'hostname' 
-    scp ${res_ClientDetails[$count]}:/home/orcasql/W/Logs/* $log_folder/ 
-    scp $TestDataFile ${res_ClientDetails[$count]}:/home/orcasql/W/
-    ssh ${res_ClientDetails[$count]} "bash /home/orcasql/W/RunTest.sh"
-    
+    VMUser=`ssh ${res_ClientDetails[$count]} 'echo $USER'`
+    echo -e `ssh ${res_ClientDetails[$count]} 'hostname'`"\t:---"
+    scp ${res_ClientDetails[$count]}:/home/$VMUser/W/Logs/* $log_folder/ 
+    ssh ${res_ClientDetails[$count]} "bash /home/$VMUser/W/RunTest.sh"
     ((count++))
 done
 echo "Getting logs from clients.. done!"    
@@ -357,5 +453,4 @@ if [ ! -d OldLogs ]; then
     mkdir -p OldLogs
 fi
 
-mv $log_folder OldLogs/$log_folder
-
+mv -f $log_folder OldLogs/$log_folder

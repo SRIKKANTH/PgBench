@@ -101,12 +101,13 @@ Server=""
 ScaleFactor=""
 Connections=""
 Threads=""
+MatchingPatter="$PerformanceTestMode\|$LongHaulTestMode"
 
-Server=($(grep -i "$PerformanceTestMode\|$LongHaulTestMode" $TestDataFile | sed "s/,/ /g" | awk '{print $2}'))
-ScaleFactor=($(grep -i "$PerformanceTestMode\|$LongHaulTestMode" $TestDataFile | sed "s/,/ /g" | awk '{print $3}'))
-Connections=($(grep -i "$PerformanceTestMode\|$LongHaulTestMode" $TestDataFile | sed "s/,/ /g" | awk '{print $4}'))
-Threads=($(grep -i "$PerformanceTestMode\|$LongHaulTestMode" $TestDataFile | sed "s/,/ /g" | awk '{print $5}'))
-ClientVMs=($(grep -i "$PerformanceTestMode\|$LongHaulTestMode" $TestDataFile | sed "s/,/ /g" | awk '{print $8}'))
+Server=($(grep -i "$MatchingPatter" $TestDataFile | sed "s/,/ /g" | awk '{print $2}'))
+ScaleFactor=($(grep -i "$MatchingPatter" $TestDataFile | sed "s/,/ /g" | awk '{print $3}'))
+Connections=($(grep -i "$MatchingPatter" $TestDataFile | sed "s/,/ /g" | awk '{print $4}'))
+Threads=($(grep -i "$MatchingPatter" $TestDataFile | sed "s/,/ /g" | awk '{print $5}'))
+ClientVMs=($(grep -i "$MatchingPatter" $TestDataFile | sed "s/,/ /g" | awk '{print $8}'))
 
 count=0
 while [ "x${Server[$count]}" != "x" ]
@@ -124,21 +125,29 @@ echo "-----------------------"
 done
 }
 
-function SetPasswordlessSSH()
+function SetUpClients()
 {
 TestDataFile='ConnectionProperties.csv'
 PerformanceTestMode="Performance"
 LongHaulTestMode="LongHaul"
 
+matchPatter="$PerformanceTestMode\|$LongHaulTestMode"
+
 ClientVMs=""
 
-ClientVMs=($(grep -i "$PerformanceTestMode\|$LongHaulTestMode" $TestDataFile | sed "s/,/ /g" | awk '{print $8}'))
+ClientVMs=($(grep -i "$matchPatter" $TestDataFile | sed "s/,/ /g" | awk '{print $8}'))
 
 count=0
-while [ "x${Server[$count]}" != "x" ]
+while [ "x${ClientVMs[$count]}" != "x" ]
 do
 echo "ClientVM= "`ssh ${ClientVMs[$count]} hostname`
-ssh-copy-id -i ~/.ssh/id_rsa.pub ${ClientVMs[$count]} 
+VMUser=`echo ${ClientVMs[$count]} | sed 's/@.*//'`
+    
+ssh-copy-id -i ~/.ssh/id_rsa.pub ${ClientVMs[$count]} 2>/dev/null
+ssh ${ClientVMs[$count]} "[ -d /home/$VMUser/W/Logs/ ] || mkdir -p /home/$VMUser/W/Logs/"
+scp pbenchTest.sh ${ClientVMs[$count]}:/home/$VMUser/W
+scp RunTest.sh ${ClientVMs[$count]}:/home/$VMUser/W
+scp $TestDataFile ${ClientVMs[$count]}:/home/$VMUser/W
 echo "-----------------------"
 ((count++))
 done
@@ -161,3 +170,29 @@ done
 
 }
 
+TestDataFile='ConnectionProperties.csv'
+
+
+
+scp pbenchTest.sh ${ClientVMs[$count]}:/home/$VMUser/W
+scp RunTest.sh ${ClientVMs[$count]}:/home/$VMUser/W
+
+count=1
+while [ "x${res_ClientDetails[$count]}" != "x" ]
+do
+    #VMUser=`echo ${res_ClientDetails[$count]} | sed 's/@.*//'`
+    VMUser=`ssh ${res_ClientDetails[$count]} 'echo $USER'`
+    ssh ${res_ClientDetails[$count]} 'hostname' 
+    #scp ${res_ClientDetails[$count]}:/home/$VMUser/W/Logs/* $log_folder/ 
+    #scp $TestDataFile ${res_ClientDetails[$count]}:/home/$VMUser/W/
+    #ssh ${res_ClientDetails[$count]} "bash /home/orcasql/W/RunTest.sh"
+    ssh ${res_ClientDetails[$count]} "ls /home/$VMUser/W/"
+    ((count++))
+done
+echo "Getting logs from clients.. done!"    
+
+
+function FixOutput ()
+{
+    [ -z "$1" ] && echo $2 || echo $1
+}

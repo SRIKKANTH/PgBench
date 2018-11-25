@@ -143,11 +143,10 @@ pgBenchTest ()
 
         procs=( "capture_netusage" "capture_memory_usage" "capture_cpu" "capture_connections" )
 
-        # run processes and store pids in array
+        # Start processes and store pids in array
         i=0
         for cmd in ${procs[*]}
         do
-            #$cmd $Iteration &
             $cmd &
             pids[${i}]=$!
             ((i++))
@@ -160,7 +159,8 @@ pgBenchTest ()
         echo "Waiting for all procs to exit"
         for pid in ${pids[*]}
         do
-            wait $pid
+            kill -9 $pid 2>/dev/null 
+            #wait $pid
         done
 
         echo "VM stats (Average) during test:--"

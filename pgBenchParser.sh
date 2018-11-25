@@ -76,17 +76,21 @@ function Parse
 
     res_Iteration=(`grep "Starting the test iteration"  $log_file_name | awk '{print $6}'`)
     res_TransactionType=(`grep "transaction type:"  $log_file_name| sed "s/transaction type://"|sed "s/ //"|sed "s/ /_/g"`)
-    res_ScalingFactor=(`grep "scaling factor:"  $log_file_name | awk '{print $3}'`)
+    #res_ScalingFactor=(`grep "scaling factor:"  $log_file_name | awk '{print $3}'`)
+    res_ScalingFactor=(`grep  ScaleFactor: $log_file_name | awk '{print $2}'`)
     res_QueryMode=(`grep "query mode:"  $log_file_name | awk '{print $3}'`)
-    res_Clients=(`grep "number of clients:"  $log_file_name | awk '{print $4}'`)
-    res_Threads=(`grep "number of threads:"  $log_file_name | awk '{print $4}'`)
+    #res_Clients=(`grep "number of clients:"  $log_file_name | awk '{print $4}'`)
+    res_Clients=(`grep  Clients: $log_file_name | awk '{print $2}'`)
+    #res_Threads=(`grep "number of threads:"  $log_file_name | awk '{print $4}'`)
+    res_Threads=(`grep  Threads: $log_file_name | awk '{print $2}'`)
     res_Duration=(`grep "duration:"  $log_file_name| sed "s/duration: //"|sed "s/ //g"`)
     res_TotalTransaction=(`grep "number of transactions actually processed: "  $log_file_name | awk '{print $6}'`)
     res_AvgLatency=(`grep "latency average: "  $log_file_name | sed "s/latency average: //"|sed "s/ //g"`)
     res_StdDevLatency=(`grep "latency stddev: "  $log_file_name | sed "s/latency stddev: //"|sed "s/ //g"`)
     res_TPSIncConnEstablishing=(`grep "tps.*including connections establishing"  $log_file_name | awk '{print $3}'`)
     res_TPSExcludingConnEstablishing=(`grep "tps.*excluding connections establishing"  $log_file_name | awk '{print $3}'`)
-    res_PgServer=(`grep  PGPASSWORD.*pgbench.*postgres:// $log_file_name | sed "s_^.*postgres://__" | sed "s_:5432/postgres__"`)
+    #res_PgServer=(`grep  PGPASSWORD.*pgbench.*postgres:// $log_file_name | sed "s_^.*postgres://__" | sed "s_:5432/postgres__"`)
+    res_PgServer=(`grep  Server: $log_file_name | awk '{print $2}'`)
     res_Duration=(`grep duration $log_file_name| awk '{print $2}'`)
     
     VmVcores=`grep "VMcores" $log_file_name| awk '{print $2}'`
@@ -134,8 +138,8 @@ function Parse
     
     echo "" > $csv_file-tmp
     echo ",ServerConfiguration" >> $csv_file-tmp
-    ServerVcores=`grep ${res_PgServer[0]} ConnectionProperties.csv | sed "s/,/ /g"| awk '{print $6}'`
-    SpaceQuotaInMb=`grep ${res_PgServer[0]} ConnectionProperties.csv | sed "s/,/ /g"| awk '{print $7}'`
+    ServerVcores=`grep ${res_PgServer[0]} $TestDataFile | sed "s/,/ /g"| awk '{print $6}'`
+    SpaceQuotaInMb=`grep ${res_PgServer[0]} $TestDataFile | sed "s/,/ /g"| awk '{print $7}'`
     ServerName=`echo ${res_PgServer[0]} | sed "s/-pip.*//"`
     echo ",ServerVcores,$ServerVcores" >> $csv_file-tmp
     echo ",SpaceQuotaInMb,$SpaceQuotaInMb" >> $csv_file-tmp
@@ -224,8 +228,11 @@ function ParseAll()
 
     list=(`ls $log_folder/*.log | grep -v dmesg`)
 
-    echo ",TestType,,,ServerDetails,,,TPS Including Connection Establishment,,,TPS Excluding Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" >> $SummaryCsv
-    echo ",TestType,Name,Vcores,SpaceQuotaInMb,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
+    #echo ",TestType,,,ServerDetails,,,TPS Including Connection Establishment,,,TPS Excluding Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" >> $SummaryCsv
+    #echo ",TestType,Name,Vcores,SpaceQuotaInMb,Min TPS,Max TPS,Average TPS,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
+
+    echo ",TestType,,,ServerDetails,,,TPS Including Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" >> $SummaryCsv
+    echo ",TestType,Name,Vcores,SpaceQuotaInMb,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
     count=0
     while [ "x${list[$count]}" != "x" ]
     do
@@ -244,9 +251,10 @@ function ParseAll()
         PgBenchCpuUtilization=`grep PgBenchCpuUtilization $CsvFile| awk -F"," '{print $3}'`
         PgBenchMemoryUtilization=`grep PgBenchMemUtilization $CsvFile| awk -F"," '{print $3}'`
         PgBenchActiveConnections=`grep PgBenchClientConnections $CsvFile | head -1| awk -F"," '{print $3}'| sed "s/\..*//"`
-        TestType=`grep $ServerName  ConnectionProperties.csv| awk -F"," '{print $9}'`
+        TestType=`grep $ServerName  $TestDataFile | awk -F"," '{print $9}'`
 
-        echo ",$TestType,$ServerName,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$Params,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
+        #echo ",$TestType,$ServerName,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$TPSExcludingConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$Params,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
+        echo ",$TestType,$ServerName,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$Params,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
 
         fileName=`basename $CsvFile`
         fileName=`echo $CsvFile |sed "s/$fileName/$ServerName\.csv/"`
@@ -323,7 +331,7 @@ then
     fi
     ParseAll
     exit 1
-fi  
+fi
 log_folder=`date|sed "s/ /_/g"| sed "s/:/_/g"`
 mkdir -p $log_folder
 echo "Getting logs from clients.."
@@ -336,7 +344,7 @@ while [ "x${res_ClientDetails[$count]}" != "x" ]
 do
     ssh ${res_ClientDetails[$count]} 'hostname' 
     scp ${res_ClientDetails[$count]}:/home/orcasql/W/Logs/* $log_folder/ 
-    scp ConnectionProperties.csv ${res_ClientDetails[$count]}:/home/orcasql/W/
+    scp $TestDataFile ${res_ClientDetails[$count]}:/home/orcasql/W/
     ssh ${res_ClientDetails[$count]} "bash /home/orcasql/W/RunTest.sh"
     
     ((count++))

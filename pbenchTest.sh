@@ -111,6 +111,11 @@ pgBenchTest ()
     echo "KernelVersion: "`uname -r`
     echo "OSVersion: "`lsb_release -a 2>/dev/null |grep Description| sed 's/Description://'|sed 's/\s//'|sed 's/\s/_/g'`
     echo "HostVersion: "`dmesg | grep "Host Build" | sed "s/.*Host Build://"| awk '{print  $1}'| sed "s/;//"`
+    echo "-------- Test parameters -------- `date`"
+    echo "Server: "$Server
+    echo "ScaleFactor: "$ScaleFactor
+    echo "Clients: "$Connections
+    echo "Threads: "$Threads
     echo "-------- Initializing db... -------- `date`"
         
     echo "PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres"

@@ -56,17 +56,16 @@ Server=""
 ScaleFactor=""
 Connections=""
 Threads=""
-
-if [ $(grep "`hostname`," $TestDataFile| wc -l) -gt 1 ]
+myhostname=`hostname`
+if [ $(grep "$myhostname," $TestDataFile| wc -l) -gt 1 ]
 then
 echo "you have more entries dude"
-Server=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g" | awk '{print $2}'))
-ScaleFactor=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g" | awk '{print $3}'))
-Connections=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g" | awk '{print $4}'))
-Threads=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g" | awk '{print $5}'))
+Server=($(grep "$myhostname," $TestDataFile | sed "s/,/ /g" | awk '{print $2}'))
+ScaleFactor=($(grep "$myhostname," $TestDataFile | sed "s/,/ /g" | awk '{print $3}'))
+Connections=($(grep "$myhostname," $TestDataFile | sed "s/,/ /g" | awk '{print $4}'))
+Threads=($(grep "$myhostname," $TestDataFile | sed "s/,/ /g" | awk '{print $5}'))
 else
-echo "you **dont** have more entries dude"
-TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
+TestData=($(grep "$myhostname," $TestDataFile | sed "s/,/  /g"))
 Server=${TestData[1]}
 ScaleFactor=${TestData[2]}
 Connections=${TestData[3]}
@@ -78,8 +77,70 @@ while [ "x${Server[$count]}" != "x" ]
 do
 #echo $UserName $PassWord $Server
 pg_isready -U $UserName  -h ${Server[$count]} -p 5432 -d postgres
+echo Server=$Server
+echo ScaleFactor=$ScaleFactor
+echo Connections$Connections
+echo Threads=$Threads
+echo "-----------------------"
 #psql -U $UserName  -h $Server -p 5432 -d postgres
     ((count++))
+done
+}
+
+
+function TestAllServers()
+{
+TestDataFile='ConnectionProperties.csv'
+PerformanceTestMode="Performance"
+LongHaulTestMode="LongHaul"
+
+UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+
+Server=""
+ScaleFactor=""
+Connections=""
+Threads=""
+
+Server=($(grep -i "$PerformanceTestMode\|$LongHaulTestMode" $TestDataFile | sed "s/,/ /g" | awk '{print $2}'))
+ScaleFactor=($(grep -i "$PerformanceTestMode\|$LongHaulTestMode" $TestDataFile | sed "s/,/ /g" | awk '{print $3}'))
+Connections=($(grep -i "$PerformanceTestMode\|$LongHaulTestMode" $TestDataFile | sed "s/,/ /g" | awk '{print $4}'))
+Threads=($(grep -i "$PerformanceTestMode\|$LongHaulTestMode" $TestDataFile | sed "s/,/ /g" | awk '{print $5}'))
+ClientVMs=($(grep -i "$PerformanceTestMode\|$LongHaulTestMode" $TestDataFile | sed "s/,/ /g" | awk '{print $8}'))
+
+count=0
+while [ "x${Server[$count]}" != "x" ]
+do
+#echo $UserName $PassWord $Server
+echo "ClientVM= "`ssh ${ClientVMs[$count]} hostname`
+echo Server=${Server[$count]}
+echo ScaleFactor=${ScaleFactor[$count]}
+echo Connections${Connections[$count]}
+echo Threads=${Threads[$count]}
+pg_isready -U $UserName  -h ${Server[$count]} -p 5432 -d postgres
+echo "-----------------------"
+#psql -U $UserName  -h $Server -p 5432 -d postgres
+((count++))
+done
+}
+
+function SetPasswordlessSSH()
+{
+TestDataFile='ConnectionProperties.csv'
+PerformanceTestMode="Performance"
+LongHaulTestMode="LongHaul"
+
+ClientVMs=""
+
+ClientVMs=($(grep -i "$PerformanceTestMode\|$LongHaulTestMode" $TestDataFile | sed "s/,/ /g" | awk '{print $8}'))
+
+count=0
+while [ "x${Server[$count]}" != "x" ]
+do
+echo "ClientVM= "`ssh ${ClientVMs[$count]} hostname`
+ssh-copy-id -i ~/.ssh/id_rsa.pub ${ClientVMs[$count]} 
+echo "-----------------------"
+((count++))
 done
 }
 
@@ -92,8 +153,9 @@ count=0
 while [ "x${res_ClientDetails[$count]}" != "x" ]
 do
     #cat ~/.ssh/id_rsa.pub | ssh ${res_ClientDetails[$count]} 'cat >> .ssh/authorized_keys'
+    ssh-copy-id -i ~/.ssh/id_rsa.pub ${res_ClientDetails[$count]} 
     ssh ${res_ClientDetails[$count]} hostname
-    scp pbenchTest.sh ${res_ClientDetails[$count]}:/home/orcasql/W
+    #scp pbenchTest.sh ${res_ClientDetails[$count]}:/home/orcasql/W
     ((count++))
 done
 

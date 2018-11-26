@@ -4,6 +4,9 @@
 # Author: Srikanth Myakam
 # Email	: 
 ####
+
+export PATH="$PATH:/opt/mssql-tools/bin"
+
 export DEBUG=0
 
 TestDataFile=ConnectionProperties.csv
@@ -12,6 +15,14 @@ PerformanceTestMode="Performance"
 LongHaulTestMode="LongHaul"
 
 MatchingPattern="$PerformanceTestMode\|$LongHaulTestMode"
+
+function DebugLog ()
+{
+    if [ $DEBUG -ge 1 ]
+    then
+        >&2 echo $1
+    fi
+}
 
 function FixOutput ()
 {
@@ -66,6 +77,31 @@ function get_Column_Avg()
 function get_Percentage ()
 {
     printf "%.1f\n" `echo 100*$1/$2 |bc -l`
+}
+
+function HowGoodIsIt()
+{
+    CurrentValue=$1
+    ReferenceValue=$2
+    
+    DebugLog "From 'HowGoodIsIt' CurrentValue=$CurrentValue, ReferenceValue=$ReferenceValue"
+
+    if [ $CurrentValue -ge $ReferenceValue ]
+    then
+        echo "Good"
+    elif [ $CurrentValue == 0 ]
+    then 
+        echo "Aborted"
+    elif [ $CurrentValue -ge `echo $ReferenceValue*95/100 | bc` ]
+    then
+        echo "Normal"
+    elif [ $CurrentValue -le `echo $ReferenceValue*95/100 | bc` ]
+    then
+        echo "Bad"
+    elif [ $CurrentValue -le `echo $ReferenceValue*80/100 | bc` ]
+    then
+        echo "Worst"
+    fi
 }
 
 function Parse
@@ -195,18 +231,47 @@ function CSV2Html()
                 count++
             }
             else{
-                if(count!=0){
-                    count++
-                    print "<td align=center colspan="count">"$i"</td>"
-                    count=0
-                }else{
-                    print "<td align=center>" $i"</td>";
-                }            
+                count++
+                if(tolower($i) ~ /good/){
+                    print "<td align=center colspan="count" bgcolor=#52D300><font color=black ><b>Good</b></font></td>";
+                }else
+                if(tolower($i) ~ /bad/){
+                    print "<td align=center colspan="count" bgcolor=#FF7D7D><font color=black ><b>Bad</b></font></td>";
+                }else
+                if(tolower($i) ~ /worst/){
+                    print "<td align=center colspan="count" bgcolor=red><font color=white ><b>Worst</b></font></td>";
+                }else
+                if(tolower($i) ~ /aborted/){
+                    print "<td align=center colspan="count" bgcolor=Black><font color=white ><b>Aborted</b></font></td>";
+                }else
+                if(tolower($i) ~ /normal/){
+                    print "<td align=center colspan="count" bgcolor=Black><font color=white ><b>Normal</b></font></td>";
+                }else{ 
+                    print "<td align=center colspan="count">" $i"</td>";
+                }
+                count=0
             }       
         }
         print "</tr>"
     }END{print "</table>"}'  > $HtmlFileName
     echo $HtmlFileName
+}
+
+function GetReferenceTpsAvg ()
+{
+    local TestType=$1
+    local Environment=$2
+    local ServerType=$3
+    local ServerVcores=$4
+    
+    local LogsDbServer=`grep "LogsDbServer\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    local LogsDbServerUsername=`grep "LogsDbServerUsername\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    local LogsDbServerPassword=`grep "LogsDbServerPassword\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    local LogsDataBase=`grep "LogsDataBase" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    local LogsTableName=`grep "LogsTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+
+    local ReferenceValue=`sqlcmd -S $LogsDbServer -U $LogsDbServerUsername -P $LogsDbServerPassword  -d $LogsDataBase  -I -Q "SELECT  Avg(AverageTPS)  FROM $LogsTableName WHERE TestType = '$TestType' and ServerType='$ServerType' and Environment = '$Environment' and ServerVcores = $ServerVcores and AverageTPS != 0"` 
+    echo $ReferenceValue | awk '{print $2}'  | sed 's/\..*//' 2>&1
 }
 
 function SendMail ()
@@ -233,7 +298,7 @@ function UploadStatsToLogsDB ()
     
     echo "Pushing stats ($ToLogsDbFileCsv) to LogsDB '$LogsDbServer' into table '$LogsTableName'"
 
-    bcp $LogsTableName in $ToLogsDbFileCsv -S $LogsDbServer -U $LogsDbServerUsername -P $LogsDbServerPassword -d $LogsDataBase -c  -t ','
+    bcp $LogsTableName in $ToLogsDbFileCsv -S $LogsDbServer -U $LogsDbServerUsername -P $LogsDbServerPassword -d $LogsDataBase -c  -t ',' 2>&1
 }
 
 function CopyToAzureStorageBlob ()
@@ -255,8 +320,8 @@ function ParseAll()
     list=(`ls $log_folder/*.log | grep -v dmesg`)
 
     echo "" > $ToLogsDbFileCsv
-    echo ",,,,,ServerDetails,,,TPS Including Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" > $SummaryCsv
-    echo ",TestType,ServerType,ServerName,Vcores,SpaceQuotaInMb,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
+    echo ",,,,,,ServerDetails,TestResult,,,TPS Including Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" > $SummaryCsv
+    echo ",TestType,ServerType,ServerName,Environment,Vcores,SpaceQuotaInMb,---,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
 
     count=0
     while [ "x${list[$count]}" != "x" ]
@@ -277,15 +342,29 @@ function ParseAll()
         PgBenchActiveConnections=$(FixOutput `grep PgBenchClientConnections $CsvFile | head -1| awk -F"," '{print $3}'| sed "s/\..*//"` 0 )
         TestType=$(FixOutput `grep $ServerName  $TestDataFile | awk -F"," '{print $9}'` NA )
         ServerType=$(FixOutput `grep $ServerName  $TestDataFile | awk -F"," '{print $10}'` NA )
+        Environment=$(FixOutput `grep $ServerName  $TestDataFile | awk -F"," '{print $11}'` NA )
         
         ScalingFactor=$(FixOutput `grep ScaleFactor $CsvFile | sed "s/,/ /g"| awk '{print $2}'` 0 )
         Clients=$(FixOutput `grep Clients $CsvFile | sed "s/,/ /g"| awk '{print $2}'` 0 )
         Threads=$(FixOutput `grep Threads $CsvFile | sed "s/,/ /g"| awk '{print $2}'` 0 )
-        ExecutedOn=`date "+%Y-%m-%d"`
+        ExecutedOn=`date "+%Y-%m-%d %H:%M:%S"`
 
-        echo ",$TestType,$ServerType,$ServerName,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$ScalingFactor,$Clients,$Threads,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
+        local ReferenceTpsAvg=`GetReferenceTpsAvg $TestType $Environment $ServerType $ServerVcores`
 
-        echo ",$TestType,$ServerName,$ServerType,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$ServerOsCpuUtilization,$ServerOsMemoryUtilization,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$ScalingFactor,$Clients,$Threads,$TotalExecutionDuration,$DbInitializationDuration,$ExecutedOn" >> $ToLogsDbFileCsv
+        local CurrentTpsAvg=`echo $TPSIncConnEstablishing|awk -F"," '{print $3}'`
+
+        local TestResult='NoReferenceData'
+        
+        DebugLog "CurrentTpsAvg=$CurrentTpsAvg, ReferenceTpsAvg=$ReferenceTpsAvg"
+
+        re='^[0-9]+$'
+        if [[ $ReferenceTpsAvg =~ $re ]] ; then
+            TestResult=`HowGoodIsIt $CurrentTpsAvg $ReferenceTpsAvg` 
+        fi
+
+        echo ",$TestType,$ServerType,$ServerName,$Environment,$ServerVcores,$SpaceQuotaInMb,$TestResult,$TPSIncConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$ScalingFactor,$Clients,$Threads,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
+
+        echo ",$TestType,$ServerName,$ServerType,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$ServerOsCpuUtilization,$ServerOsMemoryUtilization,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$ScalingFactor,$Clients,$Threads,$TotalExecutionDuration,$DbInitializationDuration,$ExecutedOn,$Environment" >> $ToLogsDbFileCsv
 
         fileName=`basename $CsvFile`
         fileName=`echo $CsvFile |sed "s/$fileName/$ServerName\.csv/"`
@@ -297,15 +376,18 @@ function ParseAll()
 
         ((count++))
     done
-
-    UploadStatsToLogsDB $ToLogsDbFileCsv
-
+    
+    if [ $DEBUG == 0 ]
+    then
+        UploadStatsToLogsDB $ToLogsDbFileCsv
+    fi
     htmlFile=`CSV2Html $SummaryCsv`
     
     mkdir -p $log_folder/CSVs
     mv -f $log_folder/*.csv $log_folder/CSVs/
     reportZipFile=`date|sed "s/ /_/g"| sed "s/:/_/g"`.zip
     zip -r $reportZipFile $log_folder/*
+    mv -f $reportZipFile OldLogs/
 
     StorageAccountUrl=`grep "StorageAccountUrl" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
     DestinationKey=`grep "DestinationKey" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
@@ -316,7 +398,6 @@ function ParseAll()
     if [ $DEBUG == 0 ]
     then
         CopyToAzureStorageBlob $reportZipFile $StorageAccountUrl $DestinationKey
-        mv -f $reportZipFile OldLogs/
     fi
 
     echo "Parsing done!"

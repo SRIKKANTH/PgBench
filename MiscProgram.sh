@@ -1,3 +1,70 @@
+TestDataFile=ConnectionProperties.csv
+
+LogsDbServer=`grep "LogsDbServer\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+LogsDbServerUsername=`grep "LogsDbServerUsername\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+LogsDbServerPassword=`grep "LogsDbServerPassword\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+LogsDataBase=`grep "LogsDataBase" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+LogsTableName=`grep "LogsTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+
+TestType='LongHaul'
+Environment='Staging'
+ServerType='StandalonePG'
+ServerVcores=32
+TPSIncConnEstablishing='12523,12701,12645'
+
+ReferenceTpsAvg=`
+function GetReferenceTpsAvg ()
+{
+    local TestType=$1
+    local Environment=$2
+    local ServerType=$3
+    local ServerVcores=$4
+    
+    local LogsDbServer=`grep "LogsDbServer\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    local LogsDbServerUsername=`grep "LogsDbServerUsername\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    local LogsDbServerPassword=`grep "LogsDbServerPassword\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    local LogsDataBase=`grep "LogsDataBase" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+    local LogsTableName=`grep "LogsTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+
+    sqlcmd -S $LogsDbServer -U $LogsDbServerUsername -P $LogsDbServerPassword  -d $LogsDataBase  -I -Q "SELECT  Avg(AverageTPS)  FROM $LogsTableName WHERE TestType = '$TestType' and ServerType='$ServerType' and Environment = '$Environment' and ServerVcores = $ServerVcores and AverageTPS != 0" 
+}
+ReferenceTpsAvg=`echo $ReferenceTpsAvg | awk '{print $2}'  | sed 's/\..*//' 2>&1`
+
+local 
+
+re='^[0-9]+$'
+if [[ $ReferenceTpsAvg =~ $re ]] ; then
+   echo "Hurrah: A number!"
+fi
+
+echo $TPSIncConnEstablishing|awk -F"," '{print $1}' 
+
+CurrentTpsAvg=`echo $TPSIncConnEstablishing|awk -F"," '{print $3}'`
+
+HowGoodIsIt $CurrentTpsAvg $ReferenceTpsAvg 
+
+function HowGoodIsIt()
+{
+    CurrentValue=$1
+    ReferenceValue=$2
+    if [ $CurrentValue -ge $ReferenceValue ]
+    then
+        echo "Good"
+    elif [ $CurrentValue == 0 ]
+    then 
+        echo "Aborted"
+    elif [ $CurrentValue -ge `echo $ReferenceValue*95/100 | bc` ]
+    then
+        echo "Normal"
+    elif [ $CurrentValue -le `echo $ReferenceValue*95/100 | bc` ]
+    then
+        echo "Bad"
+    elif [ $CurrentValue -le `echo $ReferenceValue*80/100 | bc` ]
+    then
+        echo "Worst"
+    fi
+}
+
 function CollectMachinesProperties
 {  
 echo "vCores: "`uname`
@@ -112,7 +179,7 @@ ClientVMs=($(grep -i "$MatchingPatter" $TestDataFile | sed "s/,/ /g" | awk '{pri
 count=0
 while [ "x${Server[$count]}" != "x" ]
 do
-#echo $UserName $PassWord $Server
+
 echo "ClientVM= "`ssh ${ClientVMs[$count]} hostname`
 echo Server=${Server[$count]}
 echo ScaleFactor=${ScaleFactor[$count]}
@@ -120,7 +187,7 @@ echo Connections${Connections[$count]}
 echo Threads=${Threads[$count]}
 pg_isready -U $UserName  -h ${Server[$count]} -p 5432 -d postgres
 echo "-----------------------"
-#psql -U $UserName  -h $Server -p 5432 -d postgres
+
 ((count++))
 done
 }

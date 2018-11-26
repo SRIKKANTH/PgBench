@@ -245,7 +245,7 @@ function CSV2Html()
                     print "<td align=center colspan="count" bgcolor=Black><font color=white ><b>Aborted</b></font></td>";
                 }else
                 if(tolower($i) ~ /normal/){
-                    print "<td align=center colspan="count" bgcolor=Black><font color=white ><b>Normal</b></font></td>";
+                    print "<td align=center colspan="count" bgcolor=white><font color=Black ><b>Normal</b></font></td>";
                 }else{ 
                     print "<td align=center colspan="count">" $i"</td>";
                 }
@@ -387,14 +387,14 @@ function ParseAll()
     mv -f $log_folder/*.csv $log_folder/CSVs/
     reportZipFile=`date|sed "s/ /_/g"| sed "s/:/_/g"`.zip
     zip -r $reportZipFile $log_folder/*
-    mv -f $reportZipFile OldLogs/
-
+   
     StorageAccountUrl=`grep "StorageAccountUrl" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
     DestinationKey=`grep "DestinationKey" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
     ReportEmail=`grep "ReportEmail" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 
     SendMail $htmlFile $reportZipFile $ReportEmail
-    
+    mv -f $reportZipFile OldLogs/
+
     if [ $DEBUG == 0 ]
     then
         CopyToAzureStorageBlob $reportZipFile $StorageAccountUrl $DestinationKey

@@ -12,7 +12,7 @@ ServerType='StandalonePG'
 ServerVcores=32
 TPSIncConnEstablishing='12523,12701,12645'
 
-ReferenceTpsAvg=`
+ReferenceTpsAvg=`GetReferenceTpsAvg $TestType $Environment $ServerType $ServerVcores` 
 function GetReferenceTpsAvg ()
 {
     local TestType=$1
@@ -26,9 +26,12 @@ function GetReferenceTpsAvg ()
     local LogsDataBase=`grep "LogsDataBase" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
     local LogsTableName=`grep "LogsTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 
-    sqlcmd -S $LogsDbServer -U $LogsDbServerUsername -P $LogsDbServerPassword  -d $LogsDataBase  -I -Q "SELECT  Avg(AverageTPS)  FROM $LogsTableName WHERE TestType = '$TestType' and ServerType='$ServerType' and Environment = '$Environment' and ServerVcores = $ServerVcores and AverageTPS != 0" 
+    local ReferenceValue=`sqlcmd -S $LogsDbServer -U $LogsDbServerUsername -P $LogsDbServerPassword  -d $LogsDataBase  -I -Q "SELECT  Avg(AverageTPS)  FROM $LogsTableName WHERE TestType = '$TestType' and ServerType='$ServerType' and Environment = '$Environment' and ServerVcores = $ServerVcores and AverageTPS != 0"` 
+    echo $ReferenceValue | awk '{print $2}'  | sed 's/\..*//' 2>&1
 }
+
 ReferenceTpsAvg=`echo $ReferenceTpsAvg | awk '{print $2}'  | sed 's/\..*//' 2>&1`
+
 
 local 
 

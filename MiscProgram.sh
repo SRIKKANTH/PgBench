@@ -1,3 +1,8 @@
+
+echo "Nooooo"
+
+
+
 TestDataFile=ConnectionProperties.csv
 
 LogsDbServer=`grep "LogsDbServer\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
@@ -46,27 +51,57 @@ CurrentTpsAvg=`echo $TPSIncConnEstablishing|awk -F"," '{print $3}'`
 
 HowGoodIsIt $CurrentTpsAvg $ReferenceTpsAvg 
 
+CurrentTpsAvg=23;ReferenceTpsAvg=100
+echo $(($CurrentTpsAvg-$ReferenceTpsAvg))
+
+bash
+function get_Percentage ()
+{
+    printf "%.1f\n" `echo 100*$1/$2 |bc -l`
+}
+
+
 function HowGoodIsIt()
 {
     CurrentValue=$1
     ReferenceValue=$2
-    if [ $CurrentValue -ge $ReferenceValue ]
-    then
-        echo "Good"
-    elif [ $CurrentValue == 0 ]
+    
+    Difference=`echo $CurrentValue-$ReferenceValue |bc -l`
+    Difference=`get_Percentage $Difference $ReferenceValue`
+
+    if [ `echo "$CurrentValue == 0" | bc -l` != 0 ]
     then 
-        echo "Aborted"
-    elif [ $CurrentValue -ge `echo $ReferenceValue*95/100 | bc` ]
+        echo "Aborted ($Difference%)"
+    elif [ `echo "$Difference >= 0" | bc -l` != 0 ]
     then
-        echo "Normal"
-    elif [ $CurrentValue -le `echo $ReferenceValue*95/100 | bc` ]
+        Difference="+$Difference"
+        echo "Good ($Difference%)"
+    elif [ `echo "$Difference >= -5" | bc -l` != 0 ]
     then
-        echo "Bad"
-    elif [ $CurrentValue -le `echo $ReferenceValue*80/100 | bc` ]
+        echo "Normal ($Difference%)"
+    elif [ `echo "$Difference >= -20" | bc -l` != 0 ]
     then
-        echo "Worst"
+        echo "Bad ($Difference%)"
+    elif [ `echo "$Difference < -20" | bc -l` != 0 ]
+    then
+        echo "Worst ($Difference%)"
+
     fi
 }
+HowGoodIsIt 4122 3856
+
+NUMBERS="9 7 3 8 37.53 98 95 92 101 102 123 154"
+
+for CurrentTpsAvg in `echo $NUMBERS`  # for number in 9 7 3 8 37.53
+do
+    Difference=`HowGoodIsIt $CurrentTpsAvg 100`
+
+    echo $CurrentTpsAvg  
+    echo $Difference 
+    #echo $diff 
+done
+
+exit
 
 function CollectMachinesProperties
 {  

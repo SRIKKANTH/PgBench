@@ -84,23 +84,26 @@ function HowGoodIsIt()
     CurrentValue=$1
     ReferenceValue=$2
     
-    DebugLog "From 'HowGoodIsIt' CurrentValue=$CurrentValue, ReferenceValue=$ReferenceValue"
+    Difference=`echo $CurrentValue-$ReferenceValue |bc -l`
+    Difference=`get_Percentage $Difference $ReferenceValue`
 
-    if [ $CurrentValue -ge $ReferenceValue ]
-    then
-        echo "Good"
-    elif [ $CurrentValue == 0 ]
+    if [ `echo "$CurrentValue == 0" | bc -l` != 0 ]
     then 
-        echo "Aborted"
-    elif [ $CurrentValue -ge `echo $ReferenceValue*95/100 | bc` ]
+        echo "Aborted ($Difference%)"
+    elif [ `echo "$Difference >= 0" | bc -l` != 0 ]
     then
-        echo "Normal"
-    elif [ $CurrentValue -le `echo $ReferenceValue*95/100 | bc` ]
+        Difference="+$Difference"
+        echo "Good ($Difference%)"
+    elif [ `echo "$Difference >= -10" | bc -l` != 0 ]
     then
-        echo "Bad"
-    elif [ $CurrentValue -le `echo $ReferenceValue*80/100 | bc` ]
+        echo "Normal ($Difference%)"
+    elif [ `echo "$Difference >= -20" | bc -l` != 0 ]
     then
-        echo "Worst"
+        echo "Bad ($Difference%)"
+    elif [ `echo "$Difference < -20" | bc -l` != 0 ]
+    then
+        echo "Worst ($Difference%)"
+
     fi
 }
 
@@ -145,9 +148,9 @@ function Parse
     echo "Iteration,ScalingFactor,Clients,Threads,TotalTransaction,AvgLatency,StdDevLatency,TPSIncConnEstablishing,TPSExcludingConnEstablishing,TransactionType,QueryMode,Duration,ClientOsMemoryStats-Total,ClientOsMemoryStats-Used,ClientOsMemoryStats-Free,ClientOsCpuUsage,PgBenchClientConnections,PgBenchCpuUsage,PgBenchMemUsage,PgServer,"  > $csv_file
 
     count=0
-    while [ "x${res_ScalingFactor[$count]}" != "x" ]
+    while [ "x${res_Iteration[$count]}" != "x" ]
     do
-        echo "${res_Iteration[$count]},${res_ScalingFactor[$count]},${res_Clients[$count]},${res_Threads[$count]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchClientConnections[$count]},${res_PgBenchCpuMemUtilization[$count]},${res_PgServer[$count]}"  >> $csv_file
+        echo "${res_Iteration[$count]},${res_ScalingFactor[0]},${res_Clients[0]},${res_Threads[0]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchClientConnections[$count]},${res_PgBenchCpuMemUtilization[$count]},${res_PgServer[$count]}"  >> $csv_file
         ((count++))
     done
 
@@ -161,6 +164,17 @@ function Parse
 
     TotalExecutionDuration=`get_Sum "${res_Duration[@]}"`
     DbInitializationDuration=`grep "Initializing .*Done" $log_file_name | awk '{print $6}'`
+
+    count=0
+    while [ "x${res_AvgLatency[$count]}" != "x" ]
+    do
+        res_AvgLatency[$count]=`echo ${res_AvgLatency[$count]}| sed 's/\\..*//g'`
+        res_StdDevLatency[$count]=`echo ${res_StdDevLatency[$count]}| sed 's/\\..*//g'`
+        ((count++))
+    done
+
+    AvgLatency=`get_Avg "${res_AvgLatency[@]}" | sed 's/\\.[0-9]*//'`
+    StdDevLatency=`get_Avg "${res_StdDevLatency[@]}" | sed 's/\\.[0-9]*//'`
 
     # Parsing Client stats
     grep "Memory stats OS" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
@@ -187,12 +201,15 @@ function Parse
     echo ",ServerName,$ServerName" >> $csv_file-tmp
     echo "" >> $csv_file-tmp
     echo ",ServerStats" >> $csv_file-tmp
-    echo ",,Min TPS,Max TPS,Average TPS" >> $csv_file-tmp
-    echo ",TPSIncConnEstablishing,$minMax_TPSIncConnEstablishing,$avg_TPSIncConnEstablishing" >> $csv_file-tmp
+    echo ",,Average TPS,Min TPS,Max TPS" >> $csv_file-tmp
+    echo ",TPSIncConnEstablishing,$avg_TPSIncConnEstablishing,$minMax_TPSIncConnEstablishing" >> $csv_file-tmp
     echo ",TPSExcludingConnEstablishing,$minMax_TPSExcludingConnEstablishing,$avg_TPSExcludingConnEstablishing" >> $csv_file-tmp
     echo "" >> $csv_file-tmp
     echo ",TotalExecutionDuration,$TotalExecutionDuration" >> $csv_file-tmp
     echo ",DbInitializationDuration,$DbInitializationDuration" >> $csv_file-tmp
+    echo "" >> $csv_file-tmp
+    echo ",AvgLatency,$AvgLatency" >> $csv_file-tmp
+    echo ",StdDevLatency,$StdDevLatency" >> $csv_file-tmp
     echo "" >> $csv_file-tmp
     echo ",ClientConfiguration" >> $csv_file-tmp
     echo ",VmTotalMemory,$VmTotalMem" >> $csv_file-tmp
@@ -233,19 +250,19 @@ function CSV2Html()
             else{
                 count++
                 if(tolower($i) ~ /good/){
-                    print "<td align=center colspan="count" bgcolor=#52D300><font color=black ><b>Good</b></font></td>";
+                    print "<td align=center colspan="count" bgcolor=#52D300><font color=black ><b>"$i"</b></font></td>";
                 }else
                 if(tolower($i) ~ /bad/){
-                    print "<td align=center colspan="count" bgcolor=#FF7D7D><font color=black ><b>Bad</b></font></td>";
+                    print "<td align=center colspan="count" bgcolor=#FF7D7D><font color=black ><b>"$i"</b></font></td>";
                 }else
                 if(tolower($i) ~ /worst/){
-                    print "<td align=center colspan="count" bgcolor=red><font color=white ><b>Worst</b></font></td>";
+                    print "<td align=center colspan="count" bgcolor=red><font color=white ><b>"$i"</b></font></td>";
                 }else
                 if(tolower($i) ~ /aborted/){
-                    print "<td align=center colspan="count" bgcolor=Black><font color=white ><b>Aborted</b></font></td>";
+                    print "<td align=center colspan="count" bgcolor=Black><font color=white ><b>"$i"</b></font></td>";
                 }else
                 if(tolower($i) ~ /normal/){
-                    print "<td align=center colspan="count" bgcolor=white><font color=Black ><b>Normal</b></font></td>";
+                    print "<td align=center colspan="count" bgcolor=white><font color=Black ><b>"$i"</b></font></td>";
                 }else{ 
                     print "<td align=center colspan="count">" $i"</td>";
                 }
@@ -263,14 +280,18 @@ function GetReferenceTpsAvg ()
     local Environment=$2
     local ServerType=$3
     local ServerVcores=$4
-    
+    local ScalingFactor=$5
+    local Clients=$6
+    local Threads=$7
+
     local LogsDbServer=`grep "LogsDbServer\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
     local LogsDbServerUsername=`grep "LogsDbServerUsername\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
     local LogsDbServerPassword=`grep "LogsDbServerPassword\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
     local LogsDataBase=`grep "LogsDataBase" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
     local LogsTableName=`grep "LogsTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 
-    local ReferenceValue=`sqlcmd -S $LogsDbServer -U $LogsDbServerUsername -P $LogsDbServerPassword  -d $LogsDataBase  -I -Q "SELECT  Avg(AverageTPS)  FROM $LogsTableName WHERE TestType = '$TestType' and ServerType='$ServerType' and Environment = '$Environment' and ServerVcores = $ServerVcores and AverageTPS != 0"` 
+    local ReferenceValue=`sqlcmd -S $LogsDbServer -U $LogsDbServerUsername -P $LogsDbServerPassword  -d $LogsDataBase  -I -Q "SELECT  Avg(AverageTPS)  FROM $LogsTableName WHERE TestType = '$TestType' and ServerType='$ServerType' and Environment = '$Environment' and ServerVcores = $ServerVcores and AverageTPS != 0  and ScalingFactor = '$ScalingFactor' and Clients = '$Clients' and Threads = '$Threads'"`
+
     echo $ReferenceValue | awk '{print $2}'  | sed 's/\..*//' 2>&1
 }
 
@@ -320,8 +341,8 @@ function ParseAll()
     list=(`ls $log_folder/*.log | grep -v dmesg`)
 
     echo "" > $ToLogsDbFileCsv
-    echo ",,,,,,ServerDetails,TestResult,,,TPS Including Connection Establishment,,,,,Client Stats,,,Test Parameters,,Execution Durations" > $SummaryCsv
-    echo ",TestType,ServerType,ServerName,Environment,Vcores,SpaceQuotaInMb,---,Min TPS,Max TPS,Average TPS,OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
+    echo ",,,,,,ServerDetails,TestResult,ReferenceTpsAvg,,,TPS Including Connection Establishment,,Latencies,,,,,Client Stats,,,Test Parameters,,Execution Durations" > $SummaryCsv
+    echo ",TestType,ServerType,ServerName,Environment,Vcores,SpaceQuotaInMb,---,---,Average TPS,Min TPS,Max TPS,AvgLatency(ms),StdDevLatency(ms),OsCpuUtilization%,OsMemoryUtilization%,PgBenchActiveConnections,PgBenchCpuUtilization%,PgBenchMemoryUtilization%,ScalingFactor,Clients,Threads,TotalExecution,DbInitialization" >> $SummaryCsv
 
     count=0
     while [ "x${list[$count]}" != "x" ]
@@ -336,6 +357,11 @@ function ParseAll()
         TotalExecutionDuration=$(FixOutput `grep TotalExecutionDuration $CsvFile| awk -F"," '{print $3}'` 0 )
         DbInitializationDuration=$(FixOutput `grep DbInitializationDuration $CsvFile| awk -F"," '{print $3}'` 0 )
         OsMemoryUtilization=$(FixOutput `grep ClientOsMemoryUtilization $CsvFile| awk -F"," '{print $3}'` 0.0 )
+        
+        AvgLatency=$(FixOutput `grep AvgLatency $CsvFile| awk -F"," '{print $3}'` 0 )
+        StdDevLatency=$(FixOutput `grep StdDevLatency $CsvFile| awk -F"," '{print $3}'` 0 )
+        
+        OsMemoryUtilization=$(FixOutput `grep ClientOsMemoryUtilization $CsvFile| awk -F"," '{print $3}'` 0.0 )
         OsCpuUtilization=$(FixOutput `grep ClientOsCpuUtilization $CsvFile| awk -F"," '{print $3}'` 0.0 )
         PgBenchCpuUtilization=$(FixOutput `grep PgBenchCpuUtilization $CsvFile| awk -F"," '{print $3}'` 0.0 )
         PgBenchMemoryUtilization=$(FixOutput `grep PgBenchMemUtilization $CsvFile| awk -F"," '{print $3}'` 0.0 )
@@ -349,9 +375,9 @@ function ParseAll()
         Threads=$(FixOutput `grep Threads $CsvFile | sed "s/,/ /g"| awk '{print $2}'` 0 )
         ExecutedOn=`date "+%Y-%m-%d %H:%M:%S"`
 
-        local ReferenceTpsAvg=`GetReferenceTpsAvg $TestType $Environment $ServerType $ServerVcores`
+        local ReferenceTpsAvg=`GetReferenceTpsAvg $TestType $Environment $ServerType $ServerVcores $ScalingFactor $Clients $Threads`
 
-        local CurrentTpsAvg=`echo $TPSIncConnEstablishing|awk -F"," '{print $3}'`
+        local CurrentTpsAvg=`echo $TPSIncConnEstablishing|awk -F"," '{print $1}'`
 
         local TestResult='NoReferenceData'
         
@@ -360,11 +386,13 @@ function ParseAll()
         re='^[0-9]+$'
         if [[ $ReferenceTpsAvg =~ $re ]] ; then
             TestResult=`HowGoodIsIt $CurrentTpsAvg $ReferenceTpsAvg` 
+        else
+            ReferenceTpsAvg='NoReferenceData'
         fi
 
-        echo ",$TestType,$ServerType,$ServerName,$Environment,$ServerVcores,$SpaceQuotaInMb,$TestResult,$TPSIncConnEstablishing,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$ScalingFactor,$Clients,$Threads,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
+        echo ",$TestType,$ServerType,$ServerName,$Environment,$ServerVcores,$SpaceQuotaInMb,$TestResult,$ReferenceTpsAvg,$TPSIncConnEstablishing,$AvgLatency,$StdDevLatency,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$ScalingFactor,$Clients,$Threads,$TotalExecutionDuration,$DbInitializationDuration" >> $SummaryCsv
 
-        echo ",$TestType,$ServerName,$ServerType,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$ServerOsCpuUtilization,$ServerOsMemoryUtilization,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$ScalingFactor,$Clients,$Threads,$TotalExecutionDuration,$DbInitializationDuration,$ExecutedOn,$Environment" >> $ToLogsDbFileCsv
+        echo ",$TestType,$ServerName,$ServerType,$ServerVcores,$SpaceQuotaInMb,$TPSIncConnEstablishing,$ServerOsCpuUtilization,$ServerOsMemoryUtilization,$OsCpuUtilization,$OsMemoryUtilization,$PgBenchActiveConnections,$PgBenchCpuUtilization,$PgBenchMemoryUtilization,$ScalingFactor,$Clients,$Threads,$TotalExecutionDuration,$DbInitializationDuration,$ExecutedOn,$Environment,$StdDevLatency,$AvgLatency" >> $ToLogsDbFileCsv
 
         fileName=`basename $CsvFile`
         fileName=`echo $CsvFile |sed "s/$fileName/$ServerName\.csv/"`
@@ -393,13 +421,12 @@ function ParseAll()
     ReportEmail=`grep "ReportEmail" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 
     SendMail $htmlFile $reportZipFile $ReportEmail
-    mv -f $reportZipFile OldLogs/
 
     if [ $DEBUG == 0 ]
     then
         CopyToAzureStorageBlob $reportZipFile $StorageAccountUrl $DestinationKey
     fi
-
+    mv -f $reportZipFile OldLogs/
     echo "Parsing done!"
 }
 
@@ -432,6 +459,11 @@ function SetUpClients()
 {
     TestDataFile='ConnectionProperties.csv'
 
+    PerformanceTestMode="Performance"
+    LongHaulTestMode="LongHaul"
+
+    MatchingPattern="$PerformanceTestMode\|$LongHaulTestMode"
+
     ClientVMs=""
 
     ClientVMs=($(grep -i "$MatchingPattern" $TestDataFile | sed "s/,/ /g" | awk '{print $8}'))
@@ -462,6 +494,11 @@ function SetUpClients()
 function TestAllServers()
 {
     TestDataFile='ConnectionProperties.csv'
+
+    PerformanceTestMode="Performance"
+    LongHaulTestMode="LongHaul"
+
+    MatchingPattern="$PerformanceTestMode\|$LongHaulTestMode"
 
     UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
     PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
@@ -499,13 +536,20 @@ CheckDependencies
 
 [ ! -d OldLogs  ] && mkdir OldLogs
 
+if [ "$#" -eq 1 ]; then
+    DEBUG=1
+    log_folder=$1
+    ParseAll
+    exit
+fi
+
 if [ $DEBUG != 0 ]
 then
-    log_folder=$1
     if [ "$#" -ne 1 ]; then
         echo "Usage: $0 <path to pgbench logs>" >&2
         exit 1
     fi
+    log_folder=$1
     ParseAll
     exit 1
 fi

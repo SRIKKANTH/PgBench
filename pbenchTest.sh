@@ -17,7 +17,7 @@ capture_cpu(){
     for i in $(seq 1 $capture_duration)
     do
         top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}' >> $capture_cpu_SystemFile
-        top -bn1 | grep pgbench | awk '{print $9,$10}' >> $capture_cpu_PgBenchFile
+        top -bn1 | awk '/pgbench/ {print $9,$10}' >> $capture_cpu_PgBenchFile
         sleep 1
     done
 }
@@ -40,7 +40,7 @@ capture_memory_usage(){
     #Swap:             0           0           0
 	for i in $(seq 1 $capture_duration)
 	do
-        free -m| grep Mem |awk '{print $2, $3, $4}' >> $capture_memory_usageFile
+        free -m|awk '/Mem/{print $2, $3, $4}' >> $capture_memory_usageFile
 		sleep 1
 	done
     #vmstat 1 $capture_duration >> $filetag-vmstat_$Iteration.csv
@@ -107,7 +107,7 @@ pgBenchTest ()
 
     echo "-------- Client Machine Details -------- `date`"
     echo "VMcores: "`nproc`
-    echo "TotalMemory: "`free -h|grep Mem|awk '{print $2}'`
+    echo "TotalMemory: "`free -h|awk '/Mem/{print $2}'`
     echo "KernelVersion: "`uname -r`
     echo "OSVersion: "`lsb_release -a 2>/dev/null |grep Description| sed 's/Description://'|sed 's/\s//'|sed 's/\s/_/g'`
     echo "HostVersion: "`dmesg | grep "Host Build" | sed "s/.*Host Build://"| awk '{print  $1}'| sed "s/;//"`
@@ -164,8 +164,8 @@ pgBenchTest ()
         done
 
         echo "VM stats (Average) during test:--"
-        echo "Network "`cat $capture_netusageFile| grep Average| head -1|awk '{print $5}'` ":" `cat $capture_netusageFile| grep Average|grep eth0| awk '{print $5}'`
-        echo "Network "`cat $capture_netusageFile| grep Average| head -1|awk '{print $6}'` ":" `cat $capture_netusageFile| grep Average|grep eth0| awk '{print $6}'`
+        echo "Network "`cat $capture_netusageFile|awk '/Average/&&/s/ {print $5}'` ":" `cat $capture_netusageFile| awk '/Average/&&/eth0/{print $5}'`
+        echo "Network "`cat $capture_netusageFile|awk '/Average/&&/s/ {print $5}'` ":" `cat $capture_netusageFile| awk '/Average/&&/eth0/{print $6}'`
         echo "Memory stats OS (total,used,free): " `get_Column_Avg $capture_memory_usageFile`
         echo "Connections : " `get_Column_Avg $capture_connectionsFile`
         echo "CPU usage (OS): " `get_Column_Avg $capture_cpu_SystemFile`

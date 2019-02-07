@@ -2,6 +2,6 @@
 pkill pbenchTest
 pkill pgbench
 
-cd /home/$USER/W/
+cd /$HOME/W/
 LogFile=RunLog.log
 nohup ./pbenchTest.sh > $LogFile 2>&1 &

@@ -12,6 +12,14 @@ capture_connectionsFile=/tmp/capture_connections.log
 capture_memory_usageFile=/tmp/capture_memory_usage.log
 capture_netusageFile=/tmp/capture_netusage_sar.log
 
+capture_server_connectionsFile=/tmp/capture_server_connections.log
+capture_server_netusageFile=/tmp/capture_server_netusage_sar.log
+capture_server_diskusageFile=/tmp/capture_server_diskusage.log
+capture_server_cpu_SystemFile=/tmp/capture_server_cpu_System_Top.log
+capture_server_memory_usageFile=/tmp/capture_server_memory_usage.log
+
+export COLLECT_SERVER_STATS=1
+
 capture_cpu(){
     sleep 10
     for i in $(seq 1 $capture_duration)
@@ -49,6 +57,80 @@ capture_memory_usage(){
 capture_netusage(){
     sleep 10
     sar -n DEV 1 $capture_duration 2>&1 >> $capture_netusageFile
+}
+
+get_captured_server_usages(){
+    echo "Server VM stats (Average) during test :-------------------------"
+    if [ -f $capture_server_netusageFile ]
+    then
+        echo "ServerNetwork "`cat $capture_server_netusageFile| grep Average| head -1|awk '{print $5}'` ":" `cat $capture_server_netusageFile| grep Average|grep eth0| awk '{print $5}'`
+        echo "ServerNetwork "`cat $capture_server_netusageFile| grep Average| head -1|awk '{print $6}'` ":" `cat $capture_server_netusageFile| grep Average|grep eth0| awk '{print $6}'`
+    fi
+    echo "ServerConnections : " `get_Column_Avg $capture_server_connectionsFile`
+    echo "ServerCPU usage (OS): " `get_Column_Avg $capture_server_cpu_SystemFile`
+    echo "ServerMemory stats OS (total,used,free): " `get_Column_Avg $capture_server_memory_usageFile`
+
+    echo "ServerDiskUsage: IOPS,MbpsRead,MbpsWrite :-----" 
+    disk_list=(`cat $capture_server_diskusageFile | grep ^sd| awk '{print $1}' |sort |uniq`)
+
+    count=0
+    while [ "x${disk_list[$count]}" != "x" ]
+    do
+        disk=${disk_list[$count]}
+        
+        cat $capture_server_diskusageFile | grep ^$disk| awk '{print $2"\t"$3"\t"$4}' > $capture_server_diskusageFile.tmp
+        echo "ServerDisk "$disk ": "`get_Column_Avg $capture_server_diskusageFile.tmp`
+        ((count++))
+    done   
+
+    echo "ServerDiskUsageIOPS: Min,Max :-----" 
+
+    count=0
+    while [ "x${disk_list[$count]}" != "x" ]
+    do
+        disk=${disk_list[$count]}
+        
+        IOPS_Array=(`cat $capture_server_diskusageFile | grep ^$disk| awk '{print $2}'`)
+        echo "ServerDiskIOPSMinMax "$disk ": "`get_MinMax ${IOPS_Array[@]}`
+        ((count++))
+    done   
+
+    echo "ServerDiskUsage Read MBps: Min,Max :-----" 
+
+    count=0
+    while [ "x${disk_list[$count]}" != "x" ]
+    do
+        disk=${disk_list[$count]}
+        
+        IOPS_Array=(`cat $capture_server_diskusageFile | grep ^$disk| awk '{print $3}'`)
+        echo "ServerDiskReadMBpsMinMax "$disk ": "`get_MinMax ${IOPS_Array[@]}`
+        ((count++))
+    done   
+
+    echo "ServerDiskUsage Write MBps: Min,Max :-----" 
+
+    count=0
+    while [ "x${disk_list[$count]}" != "x" ]
+    do
+        disk=${disk_list[$count]}
+        
+        IOPS_Array=(`cat $capture_server_diskusageFile | grep ^$disk| awk '{print $4}'`)
+        echo "ServerDiskWriteMBpsMinMax "$disk ": "`get_MinMax ${IOPS_Array[@]}`
+        ((count++))
+    done   
+}
+
+get_MinMax()
+{
+    inputArray=("$@")
+    count=${#inputArray[@]}
+    lastIndex=$((count-1))
+
+    IFS=$'\n' sorted=($(sort -n <<<"${inputArray[*]}"))
+    unset IFS
+    min=`printf "%.f\n" ${sorted[0]}`
+    max=`printf "%.f\n" ${sorted[$lastIndex]}`
+    echo "$min,$max"
 }
 
 get_Avg()
@@ -104,82 +186,156 @@ pgBenchTest ()
 
     UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
     PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+    
+ScaleFactor=5000
+        echo "-------- Initializing db... -------- `date`"
+            
+        echo "PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres"
+        startTime=`date +%s`
+        PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres  2>&1
+        endTime=`date +%s`
 
-    echo "-------- Client Machine Details -------- `date`"
-    echo "VMcores: "`nproc`
-    echo "TotalMemory: "`free -h|grep Mem|awk '{print $2}'`
-    echo "KernelVersion: "`uname -r`
-    echo "OSVersion: "`lsb_release -a 2>/dev/null |grep Description| sed 's/Description://'|sed 's/\s//'|sed 's/\s/_/g'`
-    echo "HostVersion: "`dmesg | grep "Host Build" | sed "s/.*Host Build://"| awk '{print  $1}'| sed "s/;//"`
-    echo "-------- Test parameters -------- `date`"
-    echo "Server: "$Server
-    echo "ScaleFactor: "$ScaleFactor
-    echo "Clients: "$Connections
-    echo "Threads: "$Threads
-    echo "-------- Initializing db... -------- `date`"
-        
-    echo "PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres"
-    startTime=`date +%s`
-    PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres  2>&1
-    endTime=`date +%s`
-
-    echo ""
-    echo "-------- Initializing db... Done in $((endTime-startTime)) seconds -------- "
-        
-    echo "Starting the test.."
-    Iteration=1
-    while sleep  1
+        echo ""
+        echo "-------- Initializing db... Done in $((endTime-startTime)) seconds -------- "
+           
+    ConnectionsList="
+    1
+    2
+    4
+    8
+    16
+    24
+    48
+    100
+    200
+    304
+    400
+    504
+    600
+    704
+    800
+    904
+    1000
+    2000
+    3000
+    4000
+    5000
+    "
+    Threads=(
+1
+2
+4
+8
+8
+8
+8
+8
+8
+8
+8
+8
+8
+8
+8
+8
+8
+8
+8
+8
+8
+)
+    j=0
+    for Connections in $ConnectionsList
     do
-        echo "-------- Starting the test iteration: $Iteration -------- `date`"
-        echo "Sleeping for 15 secs.."
-        sleep 15
-        echo "Sleeping for 15 secs..Done!"
-
-        echo > $capture_cpu_SystemFile
-        echo > $capture_cpu_PgBenchFile
-        echo > $capture_connectionsFile
-        echo > $capture_memory_usageFile
-        echo > $capture_netusageFile
-
-        procs=( "capture_netusage" "capture_memory_usage" "capture_cpu" "capture_connections" )
-
-        # Start processes and store pids in array
-        i=0
-        for cmd in ${procs[*]}
-        do
-            $cmd &
-            pids[${i}]=$!
-            ((i++))
-        done
-
-        echo "Executing: PGPASSWORD=$PassWord pgbench -P 30 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/postgres"
+        #Connections=$ScaleFactor
         
-        PGPASSWORD=$PassWord pgbench -P 60 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/postgres 2>&1
-        
-        echo "Waiting for all procs to exit"
-        for pid in ${pids[*]}
+        #Threads=${Threads[0]}
+        Threads=${Threads[j]}
+
+        echo "-------- Client Machine Details -------- `date`"
+        echo "VMcores: "`nproc`
+        echo "TotalMemory: "`free -h|grep Mem|awk '{print $2}'`
+        echo "KernelVersion: "`uname -r`
+        echo "OSVersion: "`lsb_release -a 2>/dev/null |grep Description| sed 's/Description://'|sed 's/\s//'|sed 's/\s/_/g'`
+        echo "HostVersion: "`dmesg | grep "Host Build" | sed "s/.*Host Build://"| awk '{print  $1}'| sed "s/;//"`
+        echo "-------- Test parameters -------- `date`"
+        echo "Server: "$Server
+        echo "ScaleFactor: "$ScaleFactor
+        echo "Clients: "$Connections
+        echo "Threads: "$Threads
+ 
+        echo "Starting the test.."
+        Iteration=1
+        while sleep  1
         do
-            kill -9 $pid 2>/dev/null 
-            #wait $pid
+            echo "-------- Starting the test iteration: $Iteration -------- `date`"
+            echo "Sleeping for 15 secs.."
+            sleep 15
+            echo "Sleeping for 15 secs..Done!"
+
+            echo > $capture_cpu_SystemFile
+            echo > $capture_cpu_PgBenchFile
+            echo > $capture_connectionsFile
+            echo > $capture_memory_usageFile
+            echo > $capture_netusageFile
+
+            procs=( "capture_netusage" "capture_memory_usage" "capture_cpu" "capture_connections" )
+
+            # Start processes and store pids in array
+            i=0
+            for cmd in ${procs[*]}
+            do
+                $cmd &
+                pids[${i}]=$!
+                ((i++))
+            done
+            
+            if [ $COLLECT_SERVER_STATS == 1 ]
+            then
+                echo "Starting stat collection on server"
+                ssh $Server "bash ~/W/RunCollectServerStats.sh"
+            fi
+
+            echo "Executing: PGPASSWORD=$PassWord pgbench -P 30 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/postgres"
+            
+            PGPASSWORD=$PassWord pgbench -P 60 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/postgres 2>&1
+            
+            echo "Waiting for all procs to exit"
+            for pid in ${pids[*]}
+            do
+                kill -9 $pid 2>/dev/null 
+            done
+
+            mkdir -p Logs/$Connections/$Iteration 
+
+            scp $Server:/tmp/capture_server* /tmp/
+            scp $Server:/tmp/capture_server* Logs/$Connections/$Iteration/
+
+            echo "Client VM stats (Average) during test:--------------------"
+            echo "Network "`cat $capture_netusageFile| grep Average| head -1|awk '{print $5}'` ":" `cat $capture_netusageFile| grep Average|grep eth0| awk '{print $5}'`
+            echo "Network "`cat $capture_netusageFile| grep Average| head -1|awk '{print $6}'` ":" `cat $capture_netusageFile| grep Average|grep eth0| awk '{print $6}'`
+            echo "Memory stats OS (total,used,free): " `get_Column_Avg $capture_memory_usageFile`
+            echo "Connections : " `get_Column_Avg $capture_connectionsFile`
+            echo "CPU usage (OS): " `get_Column_Avg $capture_cpu_SystemFile`
+            echo "CPU,MEM usage (pgbench): " `get_Column_Avg $capture_cpu_PgBenchFile`
+
+            if [ $COLLECT_SERVER_STATS == 1 ]
+            then
+                get_captured_server_usages
+            fi
+
+            dmesg > Logs/$Connections/$Iteration/$filetag-dmesg.log 
+
+            echo "-------- End of the test iteration: $Iteration -------- "
+
+            if [ $TestMode == $PerformanceTestMode ]; then
+            # 1 iteration is enough for PerformanceTest
+                break
+            fi
+            Iteration=$((Iteration + 1))
         done
-
-        echo "VM stats (Average) during test:--"
-        echo "Network "`cat $capture_netusageFile| grep Average| head -1|awk '{print $5}'` ":" `cat $capture_netusageFile| grep Average|grep eth0| awk '{print $5}'`
-        echo "Network "`cat $capture_netusageFile| grep Average| head -1|awk '{print $6}'` ":" `cat $capture_netusageFile| grep Average|grep eth0| awk '{print $6}'`
-        echo "Memory stats OS (total,used,free): " `get_Column_Avg $capture_memory_usageFile`
-        echo "Connections : " `get_Column_Avg $capture_connectionsFile`
-        echo "CPU usage (OS): " `get_Column_Avg $capture_cpu_SystemFile`
-        echo "CPU,MEM usage (pgbench): " `get_Column_Avg $capture_cpu_PgBenchFile`
-
-        #dmesg > $filetag-dmesg.log 
-
-        echo "-------- End of the test iteration: $Iteration -------- "
-
-        if [ $TestMode == $PerformanceTestMode ]; then
-        # 1 iteration is enough for PerformanceTest
-            break
-        fi
-        Iteration=$((Iteration + 1))
+        sleep 120
+        ((j++))
     done
 }
 

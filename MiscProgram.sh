@@ -1,4 +1,310 @@
 
+testDisk()
+{
+        log_file_name=$1
+        disk_list=( 'sda' 'sdf' )
+        #disk_list=( 'sdf' )
+        #disk_list=( `cat $log_file_name |grep "ServerDiskReadMBpsMinMax s"| awk '{print $2}'| sort| uniq`)
+        count=0
+        while [ "x${disk_list[$count]}" != "x" ]
+        do
+            echo "Parsing for '${disk_list[$count]}'"
+            Temp=(`grep "ServerDisk ${disk_list[$count]}" $log_file_name  |awk '{print $4}'`)
+            j=0
+            while [ "x${Temp[$j]}" != "x" ]
+            do
+                res_ServerDiskAverage_Server[$count,$j]=${Temp[$j]}
+                echo ${Temp[$j]}-${res_ServerDiskAverage_Server[$count,$j]} - res_ServerDiskAverage_Server[$count,$j]
+                ((j++))
+            done
+
+            Temp=(`grep "ServerDiskIOPSMinMax ${disk_list[$count]}" $log_file_name  |awk '{print $4}'`)
+            j=0
+            while [ "x${Temp[$j]}" != "x" ]
+            do
+                res_ServerDiskMinMaxIOPS_Server[$count,$j]=${Temp[$j]}
+                #echo ${Temp[$j]}
+                ((j++))
+            done
+
+            Temp=(`grep "ServerDiskReadMBpsMinMax ${disk_list[$count]}" $log_file_name  |awk '{print $4}'`)
+            j=0
+            while [ "x${Temp[$j]}" != "x" ]
+            do
+                res_ServerDiskMinMaxReadMBps_Server[$count,$j]=${Temp[$j]}
+                
+                ((j++))
+            done
+
+            Temp=(`grep "ServerDiskWriteMBpsMinMax ${disk_list[$count]}" $log_file_name  |awk '{print $4}'`) 
+            j=0
+            while [ "x${Temp[$j]}" != "x" ]
+            do
+                res_ServerDiskMinMaxWriteMBps_Server[$count,$j]=${Temp[$j]}
+                ((j++))
+            done
+            
+            ((count++))
+        done
+        
+        TitleString=""
+        i=0
+        while [ "x${disk_list[$i]}" != "x" ]
+        do
+            TitleString=$TitleString"${disk_list[$i]}-IOPSAvg,${disk_list[$i]}-MbpsReadAvg,${disk_list[$i]}-MbpsWriteAvg,${disk_list[$i]}-IOPSMin,${disk_list[$i]}-IOPSMax,${disk_list[$i]}-ReadMBpsMin,${disk_list[$i]}-ReadMBpsMax,${disk_list[$i]}-WriteMBpsMin,${disk_list[$i]}-WriteMBpsMax,,"
+            ((i++))
+        done  
+        #echo "sdcIOPSAvg,sdcMbpsReadAvg,sdcMbpsWriteAvg,sdcIOPSMin,sdcIOPSMax,sdcReadMBpsMin,sdcReadMBpsMax,sdcWriteMBpsMin,sdcWriteMBpsMax,sddIOPSAvg,sddMbpsReadAvg,sddMbpsWriteAvg,sddIOPSMin,sddIOPSMax,sddReadMBpsMin,sddReadMBpsMax,sddWriteMBpsMin,sddWriteMBpsMax" 
+        
+        echo $TitleString
+
+        j=0
+        while [ "x${res_ServerDiskAverage_Server[0,$j]}" != "x" ]
+        do
+            i=0
+            ResString=""
+            while [ "x${disk_list[$i]}" != "x" ]
+            do
+                echo "for: ${disk_list[$i]}-${res_ServerDiskAverage_Server[$i,$j]} - res_ServerDiskAverage_Server[$i,$j]"
+                ResString=$ResString"${res_ServerDiskAverage_Server[$i,$j]},-${res_ServerDiskMinMaxIOPS_Server[$i,$j]},-${res_ServerDiskMinMaxReadMBps_Server[$i,$j]},-${res_ServerDiskMinMaxWriteMBps_Server[$i,$j]},," 
+                ((i++))
+            done
+           #echo $ResString
+            ((j++))
+        done
+
+}
+
+--
+testDisk()
+{
+        log_file_name=$1
+        disk_list=( `cat $log_file_name |grep "ServerDiskReadMBpsMinMax s"| awk '{print $2}'| sort| uniq`)
+        count=0
+        while [ "x${disk_list[$count]}" != "x" ]
+        do
+            echo "Parsing for '${disk_list[$count]}'"
+            Temp=(`grep "ServerDisk ${disk_list[$count]}" $log_file_name  |awk '{print $4}'`)
+            j=0
+            while [ "x${Temp[$j]}" != "x" ]
+            do
+                res_ServerDiskAverage_Server[$count,$j]=${Temp[$j]}
+                ((j++))
+            done
+
+            Temp=(`grep "ServerDiskIOPSMinMax ${disk_list[$count]}" $log_file_name  |awk '{print $4}'`)
+            j=0
+            while [ "x${Temp[$j]}" != "x" ]
+            do
+                res_ServerDiskMinMaxIOPS_Server[$count,$j]=${Temp[$j]}
+                ((j++))
+            done
+
+            Temp=(`grep "ServerDiskReadMBpsMinMax ${disk_list[$count]}" $log_file_name  |awk '{print $4}'`)
+            j=0
+            while [ "x${Temp[$j]}" != "x" ]
+            do
+                res_ServerDiskMinMaxReadMBps_Server[$count,$j]=${Temp[$j]}
+                ((j++))
+            done
+
+            Temp=(`grep "ServerDiskWriteMBpsMinMax ${disk_list[$count]}" $log_file_name  |awk '{print $4}'`) 
+            j=0
+            while [ "x${Temp[$j]}" != "x" ]
+            do
+                res_ServerDiskMinMaxWriteMBps_Server[$count,$j]=${Temp[$j]}
+                ((j++))
+            done
+            
+            ((count++))
+        done
+        
+        TitleString=""
+        i=0
+        while [ "x${disk_list[$i]}" != "x" ]
+        do
+            TitleString=$TitleString"${disk_list[$i]}-IOPSAvg,${disk_list[$i]}-MbpsReadAvg,${disk_list[$i]}-MbpsWriteAvg,${disk_list[$i]}-IOPSMin,${disk_list[$i]}-IOPSMax,${disk_list[$i]}-ReadMBpsMin,${disk_list[$i]}-ReadMBpsMax,${disk_list[$i]}-WriteMBpsMin,${disk_list[$i]}-WriteMBpsMax,,"
+            ((i++))
+        done  
+        #echo "sdcIOPSAvg,sdcMbpsReadAvg,sdcMbpsWriteAvg,sdcIOPSMin,sdcIOPSMax,sdcReadMBpsMin,sdcReadMBpsMax,sdcWriteMBpsMin,sdcWriteMBpsMax,sddIOPSAvg,sddMbpsReadAvg,sddMbpsWriteAvg,sddIOPSMin,sddIOPSMax,sddReadMBpsMin,sddReadMBpsMax,sddWriteMBpsMin,sddWriteMBpsMax" 
+        
+        echo $TitleString
+
+        j=0
+        while [ "x${res_ServerDiskAverage_Server[$j]}" != "x" ]
+        do
+            i=0
+            ResString=""
+            while [ "x${disk_list[$i]}" != "x" ]
+            do
+                ResString=$ResString"${res_ServerDiskAverage_Server[$i,$j]},${res_ServerDiskMinMaxIOPS_Server[$i,$j]},${res_ServerDiskMinMaxReadMBps_Server[$i,$j]},${res_ServerDiskMinMaxWriteMBps_Server[$i,$j]},," 
+                ((i++))
+            done
+            echo $ResString
+            ((j++))
+        done
+
+}
+
+--
+
+testDisk()
+{
+        log_file_name=$1
+        disk_list=( 'sda' 'sdf' )
+        #disk_list=( 'sdf' )
+        #disk_list=( `cat $log_file_name |grep "ServerDiskReadMBpsMinMax s"| awk '{print $2}'| sort| uniq`)
+        count=0
+        while [ "x${disk_list[$count]}" != "x" ]
+        do
+            echo "Parsing for '${disk_list[$count]}'"
+            Temp=(`grep "ServerDisk ${disk_list[$count]}" $log_file_name  |awk '{print $4}'`)
+            j=0
+            while [ "x${Temp[$j]}" != "x" ]
+            do
+                res_ServerDiskAverage_Server[$count,$j]=${Temp[$j]}
+                echo ${Temp[$j]}-${res_ServerDiskAverage_Server[$count,$j]} - res_ServerDiskAverage_Server[$count,$j]
+                ((j++))
+            done
+
+            Temp=(`grep "ServerDiskIOPSMinMax ${disk_list[$count]}" $log_file_name  |awk '{print $4}'`)
+            j=0
+            while [ "x${Temp[$j]}" != "x" ]
+            do
+                res_ServerDiskMinMaxIOPS_Server[$count,$j]=${Temp[$j]}
+                #echo ${Temp[$j]}
+                ((j++))
+            done
+
+            Temp=(`grep "ServerDiskReadMBpsMinMax ${disk_list[$count]}" $log_file_name  |awk '{print $4}'`)
+            j=0
+            while [ "x${Temp[$j]}" != "x" ]
+            do
+                res_ServerDiskMinMaxReadMBps_Server[$count,$j]=${Temp[$j]}
+                
+                ((j++))
+            done
+
+            Temp=(`grep "ServerDiskWriteMBpsMinMax ${disk_list[$count]}" $log_file_name  |awk '{print $4}'`) 
+            j=0
+            while [ "x${Temp[$j]}" != "x" ]
+            do
+                res_ServerDiskMinMaxWriteMBps_Server[$count,$j]=${Temp[$j]}
+                ((j++))
+            done
+            
+            ((count++))
+        done
+        
+        TitleString=""
+        i=0
+        while [ "x${disk_list[$i]}" != "x" ]
+        do
+            TitleString=$TitleString"${disk_list[$i]}-IOPSAvg,${disk_list[$i]}-MbpsReadAvg,${disk_list[$i]}-MbpsWriteAvg,${disk_list[$i]}-IOPSMin,${disk_list[$i]}-IOPSMax,${disk_list[$i]}-ReadMBpsMin,${disk_list[$i]}-ReadMBpsMax,${disk_list[$i]}-WriteMBpsMin,${disk_list[$i]}-WriteMBpsMax,,"
+            ((i++))
+        done  
+        #echo "sdcIOPSAvg,sdcMbpsReadAvg,sdcMbpsWriteAvg,sdcIOPSMin,sdcIOPSMax,sdcReadMBpsMin,sdcReadMBpsMax,sdcWriteMBpsMin,sdcWriteMBpsMax,sddIOPSAvg,sddMbpsReadAvg,sddMbpsWriteAvg,sddIOPSMin,sddIOPSMax,sddReadMBpsMin,sddReadMBpsMax,sddWriteMBpsMin,sddWriteMBpsMax" 
+        
+        echo $TitleString
+
+        j=0
+        while [ "x${res_ServerDiskAverage_Server[0,$j]}" != "x" ]
+        do
+            i=0
+            ResString=""
+            while [ "x${disk_list[$i]}" != "x" ]
+            do
+                echo "for: ${disk_list[$i]}-${res_ServerDiskAverage_Server[$i,$j]} - res_ServerDiskAverage_Server[$i,$j]"
+                ResString=$ResString"${res_ServerDiskAverage_Server[$i,$j]},-${res_ServerDiskMinMaxIOPS_Server[$i,$j]},-${res_ServerDiskMinMaxReadMBps_Server[$i,$j]},-${res_ServerDiskMinMaxWriteMBps_Server[$i,$j]},," 
+                ((i++))
+            done
+           #echo $ResString
+            ((j++))
+        done
+
+}
+
+--
+
+
+function get_MinMax()
+{
+    inputArray=("$@")
+    count=${#inputArray[@]}
+    lastIndex=$((count-1))
+
+    IFS=$'\n' sorted=($(sort -n <<<"${inputArray[*]}"))
+    unset IFS
+    min=`printf "%.f\n" ${sorted[0]}`
+    max=`printf "%.f\n" ${sorted[$lastIndex]}`
+    echo "$min,$max"
+}
+
+
+get_Avg()
+{
+    inputArray=("$@")
+    count=${#inputArray[@]}
+    sum=$( IFS="+"; bc <<< "${inputArray[*]}" )
+    unset IFS
+    average=`echo $sum/$count|bc -l`
+    printf "%.3f\n" $average
+}
+
+get_Column_Avg()
+{
+    local filename=$1
+    local results
+    columns=`tail -1 $filename |wc -w`
+    i=0
+    for j in $(seq 1 $columns)
+    do
+        results[$i]=`get_Avg $(cat $filename | awk -vcol=$j '{print $col}')`
+        ((i++))
+    done
+    echo ${results[*]}| sed 's/ /,/g'
+}
+
+
+get_captured_server_usages(){
+    echo "Server VM stats (Average) during test:--"
+    if [ -f $capture_server_netusageFile ]
+    then
+        echo "ServerNetwork "`cat $capture_server_netusageFile| grep Average| head -1|awk '{print $5}'` ":" `cat $capture_server_netusageFile| grep Average|grep eth0| awk '{print $5}'`
+        echo "ServerNetwork "`cat $capture_server_netusageFile| grep Average| head -1|awk '{print $6}'` ":" `cat $capture_server_netusageFile| grep Average|grep eth0| awk '{print $6}'`
+    fi
+    echo "ServerConnections : " `get_Column_Avg $capture_server_connectionsFile`
+    echo "CPU usage (OS): " `get_Column_Avg $capture_cpu_SystemFile`
+    echo "Memory stats OS (total,used,free): " `get_Column_Avg $capture_memory_usageFile`
+
+    echo "ServerDiskUsage: IOPS,MbpsRead,MbpsWrite" 
+    disk_list=(`cat $capture_server_diskusageFile | grep ^sd| awk '{print $1}' |sort |uniq`)
+
+    count=0
+    while [ "x${disk_list[$count]}" != "x" ]
+    do
+        disk=${disk_list[$count]}
+        
+        cat $capture_server_diskusageFile | grep ^$disk| awk '{print $2"\t"$3"\t"$4}' > $capture_server_diskusageFile.tmp
+        echo "ServerDisk "$disk ": "`get_Column_Avg $capture_server_diskusageFile.tmp`
+        ((count++))
+    done   
+
+    echo "ServerDiskUsageIOPS: Min,Max" 
+
+    count=0
+    while [ "x${disk_list[$count]}" != "x" ]
+    do
+        disk=${disk_list[$count]}
+        
+        IOPS_Array=(`cat $capture_server_diskusageFile | grep ^$disk| awk '{print $2}'`)
+        echo "ServerDiskIOPSMinMax "$disk ": "`get_MinMax $IOPS_Array`
+        ((count++))
+    done   
+}
+
+
+-------------------
 echo "Nooooo"
 
 

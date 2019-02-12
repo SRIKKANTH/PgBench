@@ -13,7 +13,7 @@ TestDataFile=ConnectionProperties.csv
 
 PerformanceTestMode="Performance"
 LongHaulTestMode="LongHaul"
-
+export COLLECT_SERVER_STATS=1
 MatchingPattern="$PerformanceTestMode\|$LongHaulTestMode"
 
 function DebugLog ()
@@ -132,7 +132,15 @@ function Parse
     res_Duration=(`grep "duration:"  $log_file_name| sed "s/duration: //"|sed "s/ //g"`)
     res_TotalTransaction=(`grep "number of transactions actually processed: "  $log_file_name | awk '{print $6}'`)
     res_AvgLatency=(`grep "latency average: "  $log_file_name | sed "s/latency average: //"|sed "s/ //g"`)
+    if [ ${#res_AvgLatency[@]} == 0 ]
+    then
+        res_AvgLatency=(`grep "latency average ="  $log_file_name | sed "s/latency average =//"|sed "s/ //g"`)
+    fi
     res_StdDevLatency=(`grep "latency stddev: "  $log_file_name | sed "s/latency stddev: //"|sed "s/ //g"`)
+    if [ ${#res_StdDevLatency[@]} == 0 ]
+    then
+        res_StdDevLatency=(`grep "latency stddev ="  $log_file_name | sed "s/latency stddev =//"|sed "s/ //g"`)
+    fi
     res_TPSIncConnEstablishing=(`grep "tps.*including connections establishing"  $log_file_name | awk '{print $3}'`)
     res_TPSExcludingConnEstablishing=(`grep "tps.*excluding connections establishing"  $log_file_name | awk '{print $3}'`)
     res_PgServer=(`grep  Server: $log_file_name | awk '{print $2}'`)
@@ -140,20 +148,52 @@ function Parse
     
     VmVcores=`grep "VMcores" $log_file_name| awk '{print $2}'`
 
-    res_OsMemoryStats=(`grep "Memory stats OS" $log_file_name | sed "s/^.*:  //"`)
-    res_OsCpuUsage=(`grep "CPU usage (OS)" $log_file_name | sed "s/^.*:  //"`)
-    res_PgBenchClientConnections=(`grep "Connections" $log_file_name | sed "s/^.*:  //"`)
-    res_PgBenchCpuMemUtilization=(`grep "CPU,MEM usage (pgbench)" $log_file_name | sed "s/^.*:  //"`)
+    res_OsMemoryStats=(`grep "^Memory stats OS" $log_file_name | sed "s/^.*:  //"`)
+    res_OsCpuUsage=(`grep "^CPU usage (OS)" $log_file_name | sed "s/^.*:  //"`)
+    res_PgBenchClientConnections=(`grep "^Connections" $log_file_name | sed "s/^.*:  //"`)
+    res_PgBenchCpuMemUtilization=(`grep "^CPU,MEM usage (pgbench)" $log_file_name | sed "s/^.*:  //"`)
 
-    echo "Iteration,ScalingFactor,Clients,Threads,TotalTransaction,AvgLatency,StdDevLatency,TPSIncConnEstablishing,TPSExcludingConnEstablishing,TransactionType,QueryMode,Duration,ClientOsMemoryStats-Total,ClientOsMemoryStats-Used,ClientOsMemoryStats-Free,ClientOsCpuUsage,PgBenchClientConnections,PgBenchCpuUsage,PgBenchMemUsage,PgServer,"  > $csv_file
+
+    if [ $COLLECT_SERVER_STATS == 1 ]
+    then
+        res_Network_rx_Server=(`grep "ServerNetwork rx" $log_file_name | awk '{print $4$2}'| sed "s/rx/-/" `)
+        res_Network_tx_Server=(`grep "ServerNetwork tx" $log_file_name | awk '{print $4$2}'| sed "s/tx/-/" `)
+        res_PgConnections_Server=(`grep "ServerConnections" $log_file_name | sed "s/^.*:  //"`)
+        res_OsCpuUsage_Server=(`grep "ServerCPU usage (OS)" $log_file_name | sed "s/^.*:  //"`)
+        res_OsMemoryStats_Server=(`grep "ServerMemory stats OS" $log_file_name | sed "s/^.*:  //"`)
+        
+        #/dev/sdc datadrive
+        res_ServerDiskAverage_sdc_Server=(`grep "ServerDisk sde" $log_file_name  |awk '{print $4}'`)
+        res_ServerDiskMinMaxIOPS_sdc_Server=(`grep "ServerDiskIOPSMinMax sde" $log_file_name  |awk '{print $4}'`)
+        res_ServerDiskMinMaxReadMBps_sdc_Server=(`grep "ServerDiskReadMBpsMinMax sde" $log_file_name  |awk '{print $4}'`)
+        res_ServerDiskMinMaxWriteMBps_sdc_Server=(`grep "ServerDiskWriteMBpsMinMax sde" $log_file_name  |awk '{print $4}'`)
+
+        #/dev/sdd logdrive
+        res_ServerDiskAverage_sdd_Server=(`grep "ServerDisk sdf" $log_file_name  |awk '{print $4}'`)
+        res_ServerDiskMinMaxIOPS_sdd_Server=(`grep "ServerDiskIOPSMinMax sdf" $log_file_name  |awk '{print $4}'`)
+        res_ServerDiskMinMaxReadMBps_sdd_Server=(`grep "ServerDiskReadMBpsMinMax sdf" $log_file_name  |awk '{print $4}'`)
+        res_ServerDiskMinMaxWriteMBps_sdd_Server=(`grep "ServerDiskWriteMBpsMinMax sdf" $log_file_name  |awk '{print $4}'`)
+
+        echo "Iteration,ScalingFactor,Clients,Threads,TotalTransaction,AvgLatency,StdDevLatency,TPSIncConnEstablishing,TPSExcludingConnEstablishing,TransactionType,QueryMode,Duration,ClientOsMemoryStats-Total,ClientOsMemoryStats-Used,ClientOsMemoryStats-Free,ClientOsCpuUsage,PgBenchClientConnections,PgBenchCpuUsage,PgBenchMemUsage,PgServer,Network_rx_ServerAvg,Network_tx_ServerAvg,PgConnections_ServerAvg,OsCpuUsage_Server,OsMemoryStats_Server-Total,Used,Free,sdcIOPSAvg,sdcMbpsReadAvg,sdcMbpsWriteAvg,sdcIOPSMin,sdcIOPSMax,sdcReadMBpsMin,sdcReadMBpsMax,sdcWriteMBpsMin,sdcWriteMBpsMax,sddIOPSAvg,sddMbpsReadAvg,sddMbpsWriteAvg,sddIOPSMin,sddIOPSMax,sddReadMBpsMin,sddReadMBpsMax,sddWriteMBpsMin,sddWriteMBpsMax"  > $csv_file
+    else
+        echo "Iteration,ScalingFactor,Clients,Threads,TotalTransaction,AvgLatency,StdDevLatency,TPSIncConnEstablishing,TPSExcludingConnEstablishing,TransactionType,QueryMode,Duration,ClientOsMemoryStats-Total,ClientOsMemoryStats-Used,ClientOsMemoryStats-Free,ClientOsCpuUsage,PgBenchClientConnections,PgBenchCpuUsage,PgBenchMemUsage,PgServer,"  > $csv_file
+    fi
 
     count=0
     while [ "x${res_Iteration[$count]}" != "x" ]
     do
-        echo "${res_Iteration[$count]},${res_ScalingFactor[0]},${res_Clients[0]},${res_Threads[0]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchClientConnections[$count]},${res_PgBenchCpuMemUtilization[$count]},${res_PgServer[$count]}"  >> $csv_file
+        if [ $COLLECT_SERVER_STATS == 1 ]
+        then
+            echo "${res_Iteration[$count]},${res_ScalingFactor[count]},${res_Clients[count]},${res_Threads[count]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchClientConnections[$count]},${res_PgBenchCpuMemUtilization[$count]},${res_PgServer[$count]},${res_Network_rx_Server[$count]},${res_Network_tx_Server[$count]},${res_PgConnections_Server[$count]},${res_OsCpuUsage_Server[$count]},${res_OsMemoryStats_Server[$count]},${res_ServerDiskAverage_sdc_Server[$count]},${res_ServerDiskMinMaxIOPS_sdc_Server[$count]},${res_ServerDiskMinMaxReadMBps_sdc_Server[$count]},${res_ServerDiskMinMaxWriteMBps_sdc_Server[$count]},${res_ServerDiskAverage_sdd_Server[$count]},${res_ServerDiskMinMaxIOPS_sdd_Server[$count]},${res_ServerDiskMinMaxReadMBps_sdd_Server[$count]},${res_ServerDiskMinMaxWriteMBps_sdd_Server[$count]},"  >> $csv_file
+        else
+            echo "${res_Iteration[$count]},${res_ScalingFactor[count]},${res_Clients[count]},${res_Threads[count]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchClientConnections[$count]},${res_PgBenchCpuMemUtilization[$count]},${res_PgServer[$count]}"  >> $csv_file
+        fi
         ((count++))
     done
+##################################################
 
+    return 
+##################################################
     total=$count
 
     avg_TPSIncConnEstablishing=`get_Avg "${res_TPSIncConnEstablishing[@]}" | sed 's/\\.[0-9]*//'`
@@ -177,18 +217,18 @@ function Parse
     StdDevLatency=`get_Avg "${res_StdDevLatency[@]}" | sed 's/\\.[0-9]*//'`
 
     # Parsing Client stats
-    grep "Memory stats OS" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
+    grep "^Memory stats OS" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
     avg_OsMemoryStats=`get_Column_Avg /tmp/ClientStats.tmp`
     
     tmp_array=(`echo $avg_OsMemoryStats| sed 's/,/ /g'`)
     VmTotalMem=${tmp_array[0]}
     OsMemoryUsage=`get_Percentage ${tmp_array[1]} ${tmp_array[0]}`
 
-    grep "CPU usage (OS)" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
+    grep "^CPU usage (OS)" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
     avg_OsCpuUsage=`get_Column_Avg /tmp/ClientStats.tmp`
-    grep "Connections" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
+    grep "^Connections" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
     avg_PgBenchClientConnections=`get_Column_Avg /tmp/ClientStats.tmp`
-    grep "CPU,MEM usage (pgbench)" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
+    grep "^CPU,MEM usage (pgbench)" $log_file_name | sed "s/^.*:  //"| sed 's/,/ /g' > /tmp/ClientStats.tmp
     avg_PgBenchCpuMemUtilization=(`get_Column_Avg /tmp/ClientStats.tmp| sed 's/,/ /g'`)
     
     echo "" > $csv_file-tmp

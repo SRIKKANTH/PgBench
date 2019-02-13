@@ -110,29 +110,41 @@ function HowGoodIsIt()
 get_raw_logs_report ()
 {
     log_file_name=$1
+    
     raw_csv_file=`echo $log_file_name | sed "s/\.log/-raw\.csv/"`
-    Time=(`grep progress $log_file_name  | awk '{print $2}'`)
+    
+    Time=(`grep progress $log_file_name  | awk '{print $2}' | sed 's/\..*//'`)
     Tps=(`grep progress $log_file_name  | awk '{print $4}'`)
     Latency=(`grep progress $log_file_name  | awk '{print $7}'`)
     StdLatency=(`grep progress $log_file_name  | awk '{print $10}'`)
     res_ScalingFactor=(`grep  ScaleFactor: $log_file_name | awk '{print $2}'`)
     res_Clients=(`grep  Clients: $log_file_name | awk '{print $2}'`)
     res_Threads=(`grep  Threads: $log_file_name | awk '{print $2}'`)
-
+    Server=`grep  Server: $log_file_name | awk '{print $2}' | head -1`
+    
+    if [ "x$Server" != "x" ]
+    then
+        raw_csv_file=$Server-raw.csv
+    fi
+    
     echo "ScalingFactor,Clients,Threads,Time,Tps,Latency,StdLatency"  > $raw_csv_file
     
     i=0
     count=0
-    while [ "x${Latency[$count]}" != "x" ]
+    while [ "x${Time[$count]}" != "x" ]
     do
-        echo "${res_ScalingFactor[$i]},${res_Clients[$i]},${res_Threads[$i]},${Time[$count]},${Tps[$count]},${Latency[$count]},${StdLatency[$count]}"  >> $raw_csv_file
-        if [ ${Time[$count]} -lt ${Time[$count+1]}]
+        if  (( ${Time[$count]} % 60 == 0 ))
+        then
+            echo "${res_ScalingFactor[$i]},${res_Clients[$i]},${res_Threads[$i]},${Time[$count]},${Tps[$count]},${Latency[$count]},${StdLatency[$count]}"  >> $raw_csv_file
+        fi
+        
+        if [ ${Time[$count]} -lt ${Time[$count+1]} ]
         then
             ((i++))
         fi
         ((count++))
     done
-    cat $raw_csv_file
+    #cat $raw_csv_file
     echo "Raw logs FileName: $raw_csv_file"
 }
 

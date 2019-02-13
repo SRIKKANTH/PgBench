@@ -119,7 +119,8 @@ get_raw_logs_report ()
     res_Clients=(`grep  Clients: $log_file_name | awk '{print $2}'`)
     res_Threads=(`grep  Threads: $log_file_name | awk '{print $2}'`)
 
-    echo "res_ScalingFactor,Clients,Threads,Time,Tps,Latency,StdLatency"  > $raw_csv_file
+    echo "ScalingFactor,Clients,Threads,Time,Tps,Latency,StdLatency"  > $raw_csv_file
+    
     i=0
     count=0
     while [ "x${Latency[$count]}" != "x" ]

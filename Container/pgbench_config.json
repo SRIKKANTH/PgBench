@@ -1,0 +1,25 @@
+{
+    "ServerConfig":
+    {
+            "Server":"Server-0",
+            "UserName":"postgres",
+            "PassWord":"mysecretpassword",
+            "ServerPort":5432
+    },
+    "TestConfig":
+    [
+        {
+            "Connections":[5],
+            "Threads":[5],
+            "Duration":6,
+            "ScaleFactor":[5],
+            "NewConnForEachTx":"False",
+            "UseExistingPgBenchDB":"True",
+            "TestMode":"LongHaul",
+            "CollectServerVMStats":"False",
+            "ServerSshUsername":"",
+            "ServerSshPassword":""
+        
+        }
+    ]
+}

@@ -3,7 +3,7 @@ set +H
 
 Settingfile=$1
 
-export Duration=`jq -r '.[1].Duration' $Settingfile`
+export Duration=`jq -r '.ServerConfig.Duration' $Settingfile`
 capture_duration=$((Duration -30))
 filetag=Logs/LogFile_`hostname`
 
@@ -26,7 +26,7 @@ capture_cpu(){
     for i in $(seq 1 $capture_duration)
     do
         top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}' >> $capture_cpu_SystemFile
-        top -bn1 | grep pgbench | awk '{print $9,$10}' >> $capture_cpu_PgBenchFile
+        top -bn1 | awk '/pgbench/ {print $9,$10}' >> $capture_cpu_PgBenchFile
         sleep 1
     done
 }
@@ -49,7 +49,7 @@ capture_memory_usage(){
     #Swap:             0           0           0
 	for i in $(seq 1 $capture_duration)
 	do
-        free -m| grep Mem |awk '{print $2, $3, $4}' >> $capture_memory_usageFile
+        free -m|awk '/Mem/{print $2, $3, $4}' >> $capture_memory_usageFile
 		sleep 1
 	done
     #vmstat 1 $capture_duration >> $filetag-vmstat_$Iteration.csv
@@ -121,8 +121,8 @@ get_captured_server_usages(){
     done   
 }
 
-get_MinMax()
-{
+get_MinMax(){
+
     inputArray=("$@")
     count=${#inputArray[@]}
     lastIndex=$((count-1))
@@ -134,8 +134,8 @@ get_MinMax()
     echo "$min,$max"
 }
 
-get_Avg()
-{
+get_Avg(){
+
     inputArray=("$@")
     count=${#inputArray[@]}
     sum=$( IFS="+"; bc <<< "${inputArray[*]}" )
@@ -144,8 +144,8 @@ get_Avg()
     printf "%.3f\n" $average
 }
 
-get_Column_Avg()
-{
+get_Column_Avg(){
+
     local filename=$1
     local results
     columns=`tail -1 $filename |wc -w`
@@ -157,17 +157,32 @@ get_Column_Avg()
     done
     echo ${results[*]}| sed 's/ /,/g'
 }
+###TODO 
+check_pgserver(){
 
-pgBenchTest ()
-{    
-    Server=`jq -r '.[0].Server' $Settingfile`
-    UserName=`jq -r '.[0].UserName' $Settingfile`
-    PassWord=`jq -r '.[0].PassWord' $Settingfile`
-    ServerPort=`jq -r '.[0].ServerPort' $Settingfile`
-    ScaleFactor=`jq -r '.[0].ScaleFactor' $Settingfile`
-    Connections=`jq -r '.[1].Connections' $Settingfile`
-    Threads=`jq -r '.[1].Threads' $Settingfile`
-    TestMode=`jq -r '.[1].TestMode' $Settingfile`
+    pg_isready  -U $UserName postgres://$Server:$ServerPort/postgres
+#pg_isready command and check up status
+#use psql check user and pass working
+}
+check_ssh(){
+
+    ServerSshUsername=`jq -r '.TestConfig.ServerSshUsername' $Settingfile`
+    ServerSshUsername=`jq -r '.TestConfig.ServerSshPassword' $Settingfile`
+#ssh username@ip "hostname"
+#P03
+}
+
+###TODO End
+pgBenchTest (){
+
+    Server=`jq -r '.ServerConfig.Server' $Settingfile`
+    UserName=`jq -r '.ServerConfig.UserName' $Settingfile`
+    PassWord=`jq -r '.ServerConfig.PassWord' $Settingfile`
+    ServerPort=`jq -r '.ServerConfig.ServerPort' $Settingfile`
+    ScaleFactor=`jq -r '.ServerConfig.ScaleFactor' $Settingfile`
+    Connections=`jq -r '.TestConfig.Connections' $Settingfile`
+    Threads=`jq -r '.TestConfig.Threads' $Settingfile`
+    TestMode=`jq -r '.TestConfig.TestMode' $Settingfile`
     
     UseExistingPgBenchDB=False
     NewConnForEachTx=False
@@ -205,9 +220,9 @@ pgBenchTest ()
         then #UseExistingPgBenchDB Add
             echo "-------- Initializing db... -------- `date`"
 
-            echo "PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres"
+            echo "PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:$ServerPort/postgres"
             startTime=`date +%s`
-            PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres  2>&1
+            PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:$ServerPort/postgres  2>&1
             endTime=`date +%s`
 
             echo ""
@@ -217,7 +232,7 @@ pgBenchTest ()
         echo "Sleeping for 15 secs.."
         sleep 15
         echo "Sleeping for 15 secs..Done!"
-        
+    ####  (Start capture)
         echo > $capture_cpu_SystemFile
         echo > $capture_cpu_PgBenchFile
         echo > $capture_connectionsFile
@@ -240,17 +255,17 @@ pgBenchTest ()
             echo "Starting stat collection on server"
             ssh $Server "bash ~/W/RunCollectServerStats.sh"
         fi
-    
+    ####
         if [ "x$NewConnForEachTx" != "xFalse" ] 
         then
             PgBenchOptions="-C"
         fi
+            ### Make command as a var  print and exec
+        echo "Executing: PGPASSWORD=$PassWord pgbench -P 30 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:$ServerPort/postgres"
 
-        echo "Executing: PGPASSWORD=$PassWord pgbench -P 30 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/postgres"
-
-        PGPASSWORD=$PassWord pgbench -P 60 $PgBenchOptions -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/postgres 2>&1
-        
-        echo "Waiting for all procs to exit"
+        PGPASSWORD=$PassWord pgbench -P 60 $PgBenchOptions -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:$ServerPort/postgres 2>&1
+####       ####
+        echo "Waiting for all procs to exit" #change this
         for pid in ${pids[*]}
         do
             kill -9 $pid 2>/dev/null 
@@ -265,8 +280,8 @@ pgBenchTest ()
         fi
 
         echo "Client VM stats (Average) during test:--------------------"
-        echo "Network "`cat $capture_netusageFile| grep Average| head -1|awk '{print $5}'` ":" `cat $capture_netusageFile| grep Average|grep eth0| awk '{print $5}'`
-        echo "Network "`cat $capture_netusageFile| grep Average| head -1|awk '{print $6}'` ":" `cat $capture_netusageFile| grep Average|grep eth0| awk '{print $6}'`
+        echo "Network "`cat $capture_netusageFile|awk '/Average/&&/s/ {print $5}'` ":" `cat $capture_netusageFile| awk '/Average/&&/eth0/{print $5}'`
+        echo "Network "`cat $capture_netusageFile|awk '/Average/&&/s/ {print $5}'` ":" `cat $capture_netusageFile| awk '/Average/&&/eth0/{print $6}'`
         echo "Memory stats OS (total,used,free): " `get_Column_Avg $capture_memory_usageFile`
         echo "Connections : " `get_Column_Avg $capture_connectionsFile`
         echo "CPU usage (OS): " `get_Column_Avg $capture_cpu_SystemFile`
@@ -278,7 +293,7 @@ pgBenchTest ()
         fi
 
         dmesg > Logs/$Connections/$Iteration/$filetag-dmesg.log 
-
+####
         echo "-------- End of the test iteration: $Iteration -------- "
 
         if [ $TestMode == $PerformanceTestMode ]; then
@@ -290,8 +305,8 @@ pgBenchTest ()
 
 }
 
-CheckDependencies()
-{
+CheckDependencies(){
+    
     if [ ! -f pgbench_config.json ]; then
         echo "ERROR: pgbench_config.json: File not found!"
         exit 1

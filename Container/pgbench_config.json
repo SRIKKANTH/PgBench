@@ -7,8 +7,7 @@
             "ServerPort":5432
     },
     "TestConfig":
-    [
-        {
+    {
             "Connections":[5],
             "Threads":[5],
             "Duration":6,
@@ -20,6 +19,11 @@
             "ServerSshUsername":"",
             "ServerSshPassword":""
         
-        }
-    ]
+    },
+    "Info":
+    {
+            "Tag":"",
+            "Comment":""
+    }
+    
 }

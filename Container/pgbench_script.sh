@@ -3,7 +3,7 @@ set +H
 
 Settingfile=$1
 
-export Duration=`jq -r '.ServerConfig.Duration' $Settingfile`
+export Duration=`jq -r '.TestConfig.Duration' $Settingfile`
 capture_duration=$((Duration -30))
 filetag=Logs/LogFile_`hostname`
 
@@ -171,7 +171,33 @@ check_ssh(){
 #ssh username@ip "hostname"
 #P03
 }
+RunSshCommand(){
+    #
+}
+start_Capture(){
+    $capture_cpu_PgBenchFile
+    echo > $capture_cpu_PgBenchFile
+    echo > $capture_connectionsFile
+    echo > $capture_memory_usageFile
+    echo > $capture_netusageFile
 
+    procs=( "capture_netusage" "capture_memory_usage" "capture_cpu" "capture_connections" )
+
+    # Start processes and store pids in array
+    i=0
+    for cmd in ${procs[*]}
+    do
+        $cmd &
+        pids[${i}]=$!
+        ((i++))
+    done
+    
+    if [ $COLLECT_SERVER_STATS == 1 ]
+    then
+        echo "Starting stat collection on server"
+        ssh $Server "bash ~/W/RunCollectServerStats.sh"
+    fi
+}
 ###TODO End
 pgBenchTest (){
 
@@ -210,8 +236,6 @@ pgBenchTest (){
     echo "Clients: "$Connections
     echo "Threads: "$Threads
     
-
-    
     echo "Starting the test.."
     Iteration=1
     while sleep  1
@@ -232,29 +256,7 @@ pgBenchTest (){
         echo "Sleeping for 15 secs.."
         sleep 15
         echo "Sleeping for 15 secs..Done!"
-    ####  (Start capture)
-        echo > $capture_cpu_SystemFile
-        echo > $capture_cpu_PgBenchFile
-        echo > $capture_connectionsFile
-        echo > $capture_memory_usageFile
-        echo > $capture_netusageFile
-
-        procs=( "capture_netusage" "capture_memory_usage" "capture_cpu" "capture_connections" )
-
-        # Start processes and store pids in array
-        i=0
-        for cmd in ${procs[*]}
-        do
-            $cmd &
-            pids[${i}]=$!
-            ((i++))
-        done
-        
-        if [ $COLLECT_SERVER_STATS == 1 ]
-        then
-            echo "Starting stat collection on server"
-            ssh $Server "bash ~/W/RunCollectServerStats.sh"
-        fi
+    ####  (Start capture) Moved it outside the function  
     ####
         if [ "x$NewConnForEachTx" != "xFalse" ] 
         then
@@ -306,7 +308,7 @@ pgBenchTest (){
 }
 
 CheckDependencies(){
-    
+
     if [ ! -f pgbench_config.json ]; then
         echo "ERROR: pgbench_config.json: File not found!"
         exit 1
@@ -316,6 +318,12 @@ CheckDependencies(){
         echo "INFO: sysstat: not installed!"
         echo "INFO: sysstat: Trying to install!"
         sudo apt install sysstat -y
+    fi
+###Check jq installed or not
+    if [[ `which jq` == "" ]]; then
+        echo "INFO: jq: not installed!"
+        echo "INFO: jq: Trying to install!"
+        sudo apt install jq -y
     fi
 
     if [[ `which pgbench` == "" ]]; then

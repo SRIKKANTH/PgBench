@@ -10,7 +10,7 @@
     {
             "Connections":[5],
             "Threads":[5],
-            "Duration":6,
+            "Duration":600,
             "ScaleFactor":[5],
             "NewConnForEachTx":"False",
             "UseExistingPgBenchDB":"True",
@@ -23,7 +23,8 @@
     "Info":
     {
             "Tag":"",
-            "Comment":""
+            "Comment":"",
+            "MailIDToReportResults":""
     }
     
 }

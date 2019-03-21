@@ -297,12 +297,13 @@ run_cmd()
     local cmd=$@
     local output_file=/tmp/cmd_output.log
     echo "Executing: $cmd"
-    $cmd > $output_file 2>&1
+    #$cmd > $output_file 2>&1
+    $cmd  | tee $output_file 2>&1
     if [ $? != 0 ]
     then
         exit_script "Failed to execute '$cmd'" $output_file
     fi
-    cat $output_file
+    #cat $output_file
 }
 
 run_psql_cmd()

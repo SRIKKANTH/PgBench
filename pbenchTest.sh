@@ -1,10 +1,10 @@
 #!/bin/bash
 set +H
-Duration=1800
+Duration=7200
 TestDataFile='ConnectionProperties.csv'
 
 capture_duration=$((Duration -30))
-filetag=Logs/LogFile_`hostname`
+
 
 capture_cpu_SystemFile=/tmp/capture_cpu_System_Top.log
 capture_cpu_PgBenchFile=/tmp/capture_cpu_PgBench_Top.log
@@ -18,7 +18,10 @@ capture_server_diskusageFile=/tmp/capture_server_diskusage.log
 capture_server_cpu_SystemFile=/tmp/capture_server_cpu_System_Top.log
 capture_server_memory_usageFile=/tmp/capture_server_memory_usage.log
 
-export COLLECT_SERVER_STATS=1
+export COLLECT_SERVER_STATS=0
+export CollectViews=0
+export views_capture_duration=10000000000
+export COLLECT_query_store_stats=1
 
 capture_cpu(){
     sleep 10
@@ -157,6 +160,172 @@ get_Column_Avg()
     echo ${results[*]}| sed 's/ /,/g'
 }
 
+get_views()
+{
+    TestDataFile='ConnectionProperties.csv'
+    TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
+
+    Server=${TestData[1]}
+    PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+    UserName=postgres@$(echo $Server | sed s/\\..*//)
+
+    view_list_1=( 'pg_stat_activity'
+    'pg_stat_replication'
+    'pg_stat_wal_receiver'
+    'pg_stat_ssl'
+    'pg_stat_progress_vacuum'
+    'pg_stat_archiver'
+    'pg_stat_bgwriter'
+    'pg_stat_database'
+    'pg_stat_database_conflicts'
+    'pg_stat_all_tables'
+    'pg_stat_sys_tables'
+    'pg_stat_user_tables'
+    'pg_stat_xact_all_tables'
+    'pg_stat_xact_sys_tables'
+    'pg_stat_xact_user_tables'
+    'pg_stat_all_indexes'
+    'pg_stat_sys_indexes'
+    'pg_stat_user_indexes'
+    'pg_statio_all_tables'
+    'pg_statio_sys_tables'
+    'pg_statio_user_tables'
+    'pg_statio_all_indexes'
+    'pg_statio_sys_indexes'
+    'pg_statio_user_indexes'
+    'pg_statio_all_sequences'
+    'pg_statio_sys_sequences'
+    'pg_statio_user_sequences'
+    'pg_stat_user_functions'
+    'pg_stat_xact_user_functions' )
+
+    view_list_2=( 
+    'pg_stat_database'
+    'pg_stat_activity'
+    'pg_stat_user_tables'
+    'pg_statio_user_tables'
+    'pg_stat_user_indexes'
+    'pg_statio_user_tables' )
+
+    view_list=( 
+    'pg_stat_activity'
+    'pg_stat_wal_receiver'
+    'pg_stat_ssl'
+    'pg_stat_progress_vacuum'
+    'pg_stat_archiver'
+    'pg_stat_bgwriter'
+    'pg_stat_database'
+    'pg_stat_database_conflicts'
+    'pg_stat_all_tables'
+    'pg_stat_xact_all_tables'
+    'pg_stat_all_indexes'
+    'pg_statio_all_tables'
+    'pg_statio_all_indexes'
+    'pg_statio_all_sequences'
+    'pg_stat_user_functions'
+    'pg_stat_xact_user_functions')
+
+    LogFolder="Logs/ViewCSVs/"
+    TCS_RunLog=TCS_RunLog.log
+    echo "" > $TCS_RunLog
+
+    [ ! -d $LogFolder  ] && mkdir -p $LogFolder
+
+    local i=0
+    for view in ${view_list[*]}
+    do
+        local cmd="get_viewstats $view $Server $PassWord $UserName"
+        echo "Executing $cmd"  >> $TCS_RunLog
+        $cmd &
+        pids[${i}]=$!
+        ((i++))
+    done
+    echo "Waiting for $capture_duration seconds to all procs to exit"  >> $TCS_RunLog
+
+    sleep $capture_duration
+
+    for pid in ${pids[*]}
+    do
+        kill -9 $pid 2>/dev/null 
+    done
+    echo "End of get_views"  >> $TCS_RunLog
+}
+
+get_viewstats()
+{
+    viewName=$1
+    Server=$2
+    PassWord=$3
+    UserName=$4
+
+    local LogFolder="Logs/ViewCSVs/"
+    #sleep 10
+    LogFile=$LogFolder/$viewName.csv
+
+    echo "" > $LogFile
+
+    for i in $(seq 1 $capture_duration)
+    do
+        echo  "["`date`"] $viewName Iteration: $i" >> $TCS_RunLog
+        PGPASSWORD=$PassWord psql -h $Server -U $UserName -d postgres -c "select * from $viewName" >> $LogFile
+        sleep $views_capture_duration
+    done
+}
+
+function SendMail ()
+{
+    Attachment=$1
+    Subject_tag=$2
+    MailBody=$3
+    echo $MailBody
+    ReportEmail=`grep "ReportEmail" $TestDataFile`
+    echo "Sending Email Report to $ReportEmail with $Attachment attached and body: "`head $MailBody`
+
+    Subject="*`hostname`* - "$Subject_tag 
+    mail -a "From:Alfred" -a 'MIME-Version: 1.0' -a 'Content-Type: text/html; charset=iso-8859-1' -a 'X-AUTOR: Ing. Gareca' -s "$Subject" $ReportEmail -A $Attachment < $MailBody
+}
+
+exit_script()
+{
+    echo $1
+    SendMail $LogFile "$1" $2
+    exit 
+}
+
+run_cmd()
+{
+    local cmd=$@
+    local output_file=/tmp/cmd_output.log
+    echo "Executing: $cmd"
+    $cmd > $output_file 2>&1
+    if [ $? != 0 ]
+    then
+        exit_script "Failed to execute '$cmd'" $output_file
+    fi
+    cat $output_file
+}
+
+run_psql_cmd()
+{
+    local sql_cmd=$@
+    local sql_output_file=/tmp/cmd_output.log
+    TestDataFile='ConnectionProperties.csv'
+    TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
+
+    Server=${TestData[1]}
+    PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+    UserName=postgres@$(echo $Server | sed s/\\..*//)
+    
+    echo "Executing: psql command: $sql_cmd"
+    
+    PGPASSWORD=$PassWord psql -h $Server -U $UserName -d postgres -c "$sql_cmd" > $sql_output_file 2>&1
+    if [ $? != 0 ]
+    then
+        exit_script "Failed to execute '$sql_cmd'" $sql_output_file
+    fi
+    cat $sql_output_file
+}
+
 pgBenchTest ()
 {
     TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
@@ -164,18 +333,19 @@ pgBenchTest ()
     PerformanceTestMode="Performance"
     LongHaulTestMode="LongHaul"
     
-    TestMode=$LongHaulTestMode
+    TestMode=$PerformanceTestMode
     
     [[ $(grep `hostname` $TestDataFile) =~ $LongHaulTestMode ]] && TestMode=$LongHaulTestMode
     [[ $(grep `hostname` $TestDataFile) =~ $PerformanceTestMode ]] && TestMode=$PerformanceTestMode
 
+    TestMode=$PerformanceTestMode
     echo "Executing test in $TestMode mode"
 
     Server=${TestData[1]}
     ScaleFactor=${TestData[2]}
     Connections=${TestData[3]}
     Threads=${TestData[4]}
-
+    
     if [ "x$Server" == "x"  ]
     then
         echo "Exiting the test as no config found for this server!"
@@ -186,89 +356,75 @@ pgBenchTest ()
 
     UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
     PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
-    
-ScaleFactor=5000
-        echo "-------- Initializing db... -------- `date`"
-            
-        echo "PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres"
-        startTime=`date +%s`
-        PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/postgres  2>&1
-        endTime=`date +%s`
+    UserName=postgres@$(echo $Server | sed s/\\..*//)
 
-        echo ""
-        echo "-------- Initializing db... Done in $((endTime-startTime)) seconds -------- "
-           
+    pgbenchTestDatabase="pgbenchtestdb"
+    
+    run_psql_cmd "select 1;"
+    
+
+    Iteration=1
+
+    echo "-------- Client Machine Details -------- `date`"
+    echo "VMcores: "`nproc`
+    echo "TotalMemory: "`free -h|grep Mem|awk '{print $2}'`
+    echo "KernelVersion: "`uname -r`
+    echo "OSVersion: "`lsb_release -a 2>/dev/null |grep Description| sed 's/Description://'|sed 's/\s//'|sed 's/\s/_/g'`
+    echo "HostVersion: "`dmesg | grep "Host Build" | sed "s/.*Host Build://"| awk '{print  $1}'| sed "s/;//"`
+    echo ""
+    echo "ServerConfigTrackingParameters:"
+    
+    #PGPASSWORD=$PassWord psql -h $Server -U $UserName -d postgres -c "SHOW ALL;" | grep "pg_qs.query_capture_mode\|track_activities\|track_counts\|track_functions\|track_io_timing"
+    run_psql_cmd "SHOW ALL;" | grep "pg_qs.query_capture_mode\|track_activities\|track_counts\|track_functions\|track_io_timing"
+    echo ""
+    echo "-------- Dropping test db ... -------- `date`"
+    run_psql_cmd "DROP DATABASE IF EXISTS $pgbenchTestDatabase;"
+    echo ""
+    echo "-------- Creating test db ... -------- `date`"
+    run_psql_cmd "CREATE DATABASE $pgbenchTestDatabase;"
+    
+    echo ""
+    echo "-------- Initializing db... -------- `date`"
+    echo "-------- Test parameters -------- `date`"
+    echo "Server: "$Server
+    echo "ScaleFactor: "$ScaleFactor
+    echo "Clients: "$Connections
+    echo "Threads: "$Threads
+    
+    echo "PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/$pgbenchTestDatabase"
+    startTime=`date +%s`
+    PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/$pgbenchTestDatabase 2>&1
+    endTime=`date +%s`
+
+    echo ""
+    echo "-------- Initializing db... Done in $((endTime-startTime)) seconds -------- "
+
     ConnectionsList="
-    1
-    2
-    4
-    8
-    16
-    24
-    48
     100
-    200
-    304
-    400
-    504
-    600
-    704
-    800
-    904
-    1000
-    2000
-    3000
-    4000
-    5000
     "
     Threads=(
-1
-2
-4
-8
-8
-8
-8
-8
-8
-8
-8
-8
-8
-8
-8
-8
-8
-8
-8
-8
-8
-)
+    8
+    8
+    )
     j=0
     for Connections in $ConnectionsList
     do
-        #Connections=$ScaleFactor
-        
-        #Threads=${Threads[0]}
         Threads=${Threads[j]}
+        if [ $Threads -gt `nproc` ]
+        then
+            Threads=`nproc`
+        fi
 
-        echo "-------- Client Machine Details -------- `date`"
-        echo "VMcores: "`nproc`
-        echo "TotalMemory: "`free -h|grep Mem|awk '{print $2}'`
-        echo "KernelVersion: "`uname -r`
-        echo "OSVersion: "`lsb_release -a 2>/dev/null |grep Description| sed 's/Description://'|sed 's/\s//'|sed 's/\s/_/g'`
-        echo "HostVersion: "`dmesg | grep "Host Build" | sed "s/.*Host Build://"| awk '{print  $1}'| sed "s/;//"`
-        echo "-------- Test parameters -------- `date`"
-        echo "Server: "$Server
-        echo "ScaleFactor: "$ScaleFactor
-        echo "Clients: "$Connections
-        echo "Threads: "$Threads
- 
         echo "Starting the test.."
-        Iteration=1
         while sleep  1
         do
             echo "-------- Starting the test iteration: $Iteration -------- `date`"
+            echo "-------- Test parameters -------- `date`"
+            echo "Server: "$Server
+            echo "ScaleFactor: "$ScaleFactor
+            echo "Clients: "$Connections
+            echo "Threads: "$Threads
+
             echo "Sleeping for 15 secs.."
             sleep 15
             echo "Sleeping for 15 secs..Done!"
@@ -281,10 +437,16 @@ ScaleFactor=5000
 
             procs=( "capture_netusage" "capture_memory_usage" "capture_cpu" "capture_connections" )
 
+            if [ $CollectViews == 1 ]
+            then
+                procs+=( "get_views" )
+            fi
+
             # Start processes and store pids in array
             i=0
             for cmd in ${procs[*]}
             do
+                echo "Executing $cmd"
                 $cmd &
                 pids[${i}]=$!
                 ((i++))
@@ -296,9 +458,16 @@ ScaleFactor=5000
                 ssh $Server "bash ~/W/RunCollectServerStats.sh"
             fi
 
-            echo "Executing: PGPASSWORD=$PassWord pgbench -P 30 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/postgres"
+            if [ $COLLECT_query_store_stats == 1 ]
+            then
+                echo "'query_store' before test:---------------------------"
+                PGPASSWORD=$PassWord psql -h $Server -U $UserName -d azure_sys -c  "select * from query_store.qs_view where query_sql_text like '%pgbench%' order by  query_sql_text asc, start_time asc"
+                echo "-----------------------------------------------------"
+            fi
+
+            echo "Executing: PGPASSWORD=$PassWord pgbench -S -P 60 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/$pgbenchTestDatabase"
             
-            PGPASSWORD=$PassWord pgbench -P 60 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/postgres 2>&1
+            PGPASSWORD=$PassWord pgbench -S -P 60 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/$pgbenchTestDatabase 2>&1
             
             echo "Waiting for all procs to exit"
             for pid in ${pids[*]}
@@ -308,8 +477,11 @@ ScaleFactor=5000
 
             mkdir -p Logs/$Connections/$Iteration 
 
-            scp $Server:/tmp/capture_server* /tmp/
-            scp $Server:/tmp/capture_server* Logs/$Connections/$Iteration/
+            if [ $COLLECT_SERVER_STATS == 1 ]
+            then
+                scp $Server:/tmp/capture_server* /tmp/
+                scp $Server:/tmp/capture_server* Logs/$Connections/$Iteration/
+            fi
 
             echo "Client VM stats (Average) during test:--------------------"
             echo "Network "`cat $capture_netusageFile| grep Average| head -1|awk '{print $5}'` ":" `cat $capture_netusageFile| grep Average|grep eth0| awk '{print $5}'`
@@ -324,7 +496,13 @@ ScaleFactor=5000
                 get_captured_server_usages
             fi
 
-            dmesg > Logs/$Connections/$Iteration/$filetag-dmesg.log 
+            #dmesg > Logs/$Connections/$Iteration/$filetag-dmesg.log 
+            if [ $COLLECT_query_store_stats == 1 ]
+            then
+                echo "'query_store' after test:---------------------------"
+                PGPASSWORD=$PassWord psql -h $Server -U $UserName -d azure_sys -c  "select * from query_store.qs_view where query_sql_text like '%pgbench%' order by  query_sql_text asc, start_time asc" 
+                echo "-----------------------------------------------------"
+            fi
 
             echo "-------- End of the test iteration: $Iteration -------- "
 
@@ -332,8 +510,8 @@ ScaleFactor=5000
             # 1 iteration is enough for PerformanceTest
                 break
             fi
-            Iteration=$((Iteration + 1))
         done
+        Iteration=$((Iteration + 1))
         sleep 120
         ((j++))
     done
@@ -359,23 +537,54 @@ CheckDependencies()
     fi
 }
 
+function GetLogFileNameTag()
+{
+    TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
+    Server=${TestData[1]}
+    PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+    ServerName=$(echo $Server | sed s/\\..*//)
+    UserName=postgres@$ServerName
+    
+    track_option_list="track_io_timing
+    track_functions
+    track_counts
+    track_activities"
+
+    track_config=""
+    for track_option in $track_option_list; do
+        track_config=`PGPASSWORD=$PassWord psql -h $Server -U $UserName -d postgres -c "SHOW ALL;" | grep $track_option | sed "s/| Collects.*//"| sed "s/|/-/"| sed "s/ //g"`_$track_config 
+    done
+
+    track_config=`echo $track_config | sed s/track_activities/T-ACT/g`
+    track_config=`echo $track_config | sed s/track_counts/T-COUNT/g`
+    track_config=`echo $track_config | sed s/track_functions/T-FUN/g`
+    track_config=`echo $track_config | sed s/track_io_timing/T-IOTIME/g`
+    echo $track_config$ServerName-top-$CollectViews-$views_capture_duration
+}
+
 ###############################################################
-##
 ##              Script Execution Starts from here
 ###############################################################
 
 CheckDependencies
 
 pkill pgbench
+ReportEmail=$(grep -i "ReportEmail," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
 
 if [ -d Logs ]; then
     folder=OldLogs/`date|sed "s/ /_/g"| sed "s/:/_/g"`
     mkdir -p $folder
     mv Logs/* $folder/
 fi
-
+CurrentTime=`date +%m-%d-%T| sed 's/:/-/g'`
+filetag=Logs/LogFile_`hostname`_`GetLogFileNameTag`_$CurrentTime
 LogFile=$filetag.log
 
 [ ! -d Logs  ] && mkdir Logs
 
 pgBenchTest > $LogFile 2>&1
+
+cp $LogFile /home/vmuser/
+chmod 0777 /home/vmuser/LogFile_*
+
+SendMail $LogFile "pgbench Test Completed" /etc/hostname

@@ -20,9 +20,14 @@ capture_server_memory_usageFile=/tmp/capture_server_memory_usage.log
 
 export COLLECT_SERVER_STATS=0
 export CollectViews=0
-export views_capture_duration=10000000000
+export views_capture_duration=1
 export COLLECT_query_store_stats=1
+export Test_Iterations=3
+###
+export pgbenchTestDatabase="pgbenchtestdb"
+export pgbench_progress_interval=10
 
+##############
 capture_cpu(){
     sleep 10
     for i in $(seq 1 $capture_duration)
@@ -267,7 +272,7 @@ get_viewstats()
     for i in $(seq 1 $capture_duration)
     do
         echo  "["`date`"] $viewName Iteration: $i" >> $TCS_RunLog
-        PGPASSWORD=$PassWord psql -h $Server -U $UserName -d postgres -c "select * from $viewName" >> $LogFile
+        PGPASSWORD=$PassWord psql -h $Server -U $UserName -d postgres -c "select CURRENT_TIMESTAMP, *  $viewName" >> $LogFile
         sleep $views_capture_duration
     done
 }
@@ -359,11 +364,8 @@ pgBenchTest ()
     PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
     UserName=postgres@$(echo $Server | sed s/\\..*//)
 
-    pgbenchTestDatabase="pgbenchtestdb"
-    
     run_psql_cmd "select 1;"
     
-
     Iteration=1
 
     echo "-------- Client Machine Details -------- `date`"
@@ -374,11 +376,12 @@ pgBenchTest ()
     echo "HostVersion: "`dmesg | grep "Host Build" | sed "s/.*Host Build://"| awk '{print  $1}'| sed "s/;//"`
     echo ""
     echo "ServerConfigTrackingParameters:"
-    
-    #PGPASSWORD=$PassWord psql -h $Server -U $UserName -d postgres -c "SHOW ALL;" | grep "pg_qs.query_capture_mode\|track_activities\|track_counts\|track_functions\|track_io_timing"
+
     run_psql_cmd "SHOW ALL;" | grep "pg_qs.query_capture_mode\|track_activities\|track_counts\|track_functions\|track_io_timing"
     echo ""
     echo "-------- Dropping test db ... -------- `date`"
+    run_psql_cmd "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = $pgbenchTestDatabase AND pid <> pg_backend_pid();"
+
     run_psql_cmd "DROP DATABASE IF EXISTS $pgbenchTestDatabase;"
     echo ""
     echo "-------- Creating test db ... -------- `date`"
@@ -404,7 +407,6 @@ pgBenchTest ()
     100
     "
     Threads=(
-    8
     8
     )
     j=0
@@ -465,10 +467,10 @@ pgBenchTest ()
                 PGPASSWORD=$PassWord psql -h $Server -U $UserName -d azure_sys -c  "select * from query_store.qs_view where query_sql_text like '%pgbench%' order by  query_sql_text asc, start_time asc"
                 echo "-----------------------------------------------------"
             fi
-
-            echo "Executing: PGPASSWORD=$PassWord pgbench -S -P 60 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/$pgbenchTestDatabase"
+             
+            echo "Executing: PGPASSWORD=$PassWord pgbench -S -P $pgbench_progress_interval -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/$pgbenchTestDatabase"
             
-            PGPASSWORD=$PassWord pgbench -S -P 60 -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/$pgbenchTestDatabase 2>&1
+            PGPASSWORD=$PassWord pgbench $extra_options -P $pgbench_progress_interval -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/$pgbenchTestDatabase 2>&1
             
             echo "Waiting for all procs to exit"
             for pid in ${pids[*]}
@@ -497,7 +499,6 @@ pgBenchTest ()
                 get_captured_server_usages
             fi
 
-            #dmesg > Logs/$Connections/$Iteration/$filetag-dmesg.log 
             if [ $COLLECT_query_store_stats == 1 ]
             then
                 echo "'query_store' after test:---------------------------"
@@ -543,9 +544,9 @@ function GetLogFileNameTag()
     TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
     Server=${TestData[1]}
     PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
-    ServerName=$(echo $Server | sed s/\\..*//)
-    UserName=postgres@$ServerName
-    
+    UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+    UserName=postgres@$(echo $Server | sed s/\\..*//)
+
     track_option_list="track_io_timing
     track_functions
     track_counts
@@ -553,13 +554,23 @@ function GetLogFileNameTag()
 
     track_config=""
     for track_option in $track_option_list; do
-        track_config=`PGPASSWORD=$PassWord psql -h $Server -U $UserName -d postgres -c "SHOW ALL;" | grep $track_option | sed "s/| Collects.*//"| sed "s/|/-/"| sed "s/ //g"`_$track_config 
+        track_config=`PGPASSWORD=$PassWord psql -h $Server -U $UserName -d $pgbenchTestDatabase -c "SHOW ALL;" | grep $track_option | sed "s/| Collects.*//"| sed "s/|/-/"| sed "s/ //g"`_$track_config 
     done
 
     track_config=`echo $track_config | sed s/track_activities/T-ACT/g`
     track_config=`echo $track_config | sed s/track_counts/T-COUNT/g`
     track_config=`echo $track_config | sed s/track_functions/T-FUN/g`
     track_config=`echo $track_config | sed s/track_io_timing/T-IOTIME/g`
+    #
+    track_config=`echo $track_config |sed 's/T-ACT-off_T-COUNT-off_T-FUN-none_T-IOTIME-on/Io_T/'`
+    track_config=`echo $track_config |sed 's/T-ACT-off_T-COUNT-off_T-FUN-all_T-IOTIME-off/FUNC/'`
+    track_config=`echo $track_config |sed 's/T-ACT-off_T-COUNT-off_T-FUN-none_T-IOTIME-off/NONE/'`
+    track_config=`echo $track_config |sed 's/T-ACT-on_T-COUNT-on_T-FUN-all_T-IOTIME-on/ALL/'`
+    track_config=`echo $track_config |sed 's/T-ACT-on_T-COUNT-off_T-FUN-none_T-IOTIME-off/ACT/'`
+    track_config=`echo $track_config |sed 's/T-ACT-off_T-COUNT-on_T-FUN-none_T-IOTIME-off/COUNTS/'`
+    track_config=`echo $track_config |sed 's/T-ACT-on_T-COUNT-on_T-FUN-none_T-IOTIME-on/AzureDefault/'`
+    track_config=`echo $track_config |sed 's/:/-/g'`
+
     echo $track_config$ServerName-top-$CollectViews-$views_capture_duration
 }
 
@@ -568,24 +579,30 @@ function GetLogFileNameTag()
 ###############################################################
 
 CheckDependencies
+Current_Test_Iteration=0
+while [ $Test_Iterations -gt $Current_Test_Iteration ]
+do
+    echo "------------------------------Executing Test Iteration: $Current_Test_Iteration at "`date`"------------------------------"
+    pkill pgbench
+    ReportEmail=$(grep -i "ReportEmail," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
 
-pkill pgbench
-ReportEmail=$(grep -i "ReportEmail," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+    if [ -d Logs ]; then
+        folder=OldLogs/`date|sed "s/ /_/g"| sed "s/:/_/g"`
+        mkdir -p $folder
+        mv Logs/* $folder/
+    fi
+    CurrentTime=`date +%m-%d-%T| sed 's/:/-/g'`
+    filetag=Logs/LogFile_`hostname`_`GetLogFileNameTag`_$CurrentTime
+    LogFile=$filetag.log
 
-if [ -d Logs ]; then
-    folder=OldLogs/`date|sed "s/ /_/g"| sed "s/:/_/g"`
-    mkdir -p $folder
-    mv Logs/* $folder/
-fi
-CurrentTime=`date +%m-%d-%T| sed 's/:/-/g'`
-filetag=Logs/LogFile_`hostname`_`GetLogFileNameTag`_$CurrentTime
-LogFile=$filetag.log
+    [ ! -d Logs  ] && mkdir Logs
 
-[ ! -d Logs  ] && mkdir Logs
+    pgBenchTest > $LogFile 2>&1
 
-pgBenchTest > $LogFile 2>&1
+    cp $LogFile /home/vmuser/
+    chmod 0777 /home/vmuser/LogFile_*
 
-cp $LogFile /home/vmuser/
-chmod 0777 /home/vmuser/LogFile_*
-
-SendMail $LogFile "pgbench Test Completed" /etc/hostname
+    SendMail $LogFile "pgbench Test Completed" /etc/hostname
+    echo "------------------------------End of Test Iteration: $Current_Test_Iteration at "`date`"------------------------------"
+    ((Current_Test_Iteration++))
+done

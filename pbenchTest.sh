@@ -1,10 +1,38 @@
 #!/bin/bash
 set +H
-Duration=7200
-TestDataFile='ConnectionProperties.csv'
+export Duration=7200
+export TestDataFile='ConnectionProperties.csv'
+
+export TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
+export Server=${TestData[1]}
+export UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+export PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+#export UserName=postgres@$(echo $Server | sed s/\\..*//)
+export ConnectionsList="
+    1
+    2
+    4
+    8
+    16
+    32
+    48
+    100
+    200
+    "
+
+#
+export COLLECT_SERVER_STATS=0
+export CollectViews=0
+export views_capture_duration=1
+export COLLECT_query_store_stats=0
+export Test_Iterations=3
+###
+export pgbenchTestDatabase="postgres"
+export DropDBonEachRun=0
+export pgbench_progress_interval=60
+##################################################################################
 
 capture_duration=$((Duration -30))
-
 
 capture_cpu_SystemFile=/tmp/capture_cpu_System_Top.log
 capture_cpu_PgBenchFile=/tmp/capture_cpu_PgBench_Top.log
@@ -17,15 +45,6 @@ capture_server_netusageFile=/tmp/capture_server_netusage_sar.log
 capture_server_diskusageFile=/tmp/capture_server_diskusage.log
 capture_server_cpu_SystemFile=/tmp/capture_server_cpu_System_Top.log
 capture_server_memory_usageFile=/tmp/capture_server_memory_usage.log
-
-export COLLECT_SERVER_STATS=0
-export CollectViews=0
-export views_capture_duration=1
-export COLLECT_query_store_stats=1
-export Test_Iterations=3
-###
-export pgbenchTestDatabase="pgbenchtestdb"
-export pgbench_progress_interval=10
 
 ##############
 capture_cpu(){
@@ -167,13 +186,6 @@ get_Column_Avg()
 
 get_views()
 {
-    TestDataFile='ConnectionProperties.csv'
-    TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
-
-    Server=${TestData[1]}
-    PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
-    UserName=postgres@$(echo $Server | sed s/\\..*//)
-
     view_list_1=( 'pg_stat_activity'
     'pg_stat_replication'
     'pg_stat_wal_receiver'
@@ -265,7 +277,7 @@ get_viewstats()
 
     local LogFolder="Logs/ViewCSVs/"
     #sleep 10
-    LogFile=$LogFolder/$viewName.csv
+    LogFile=$LogFolder/$viewName.log
 
     echo "" > $LogFile
 
@@ -300,7 +312,7 @@ exit_script()
 run_cmd()
 {
     local cmd=$@
-    local output_file=/tmp/cmd_output.log
+    local output_file=/tmp/cmd_output_`cat /proc/sys/kernel/random/uuid`.log
     echo "Executing: $cmd"
     #$cmd > $output_file 2>&1
     $cmd  | tee $output_file 2>&1
@@ -308,19 +320,13 @@ run_cmd()
     then
         exit_script "Failed to execute '$cmd'" $output_file
     fi
-    #cat $output_file
+    rm -rf $output_file
 }
 
 run_psql_cmd()
 {
     local sql_cmd=$@
-    local sql_output_file=/tmp/cmd_output.log
-    TestDataFile='ConnectionProperties.csv'
-    TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
-
-    Server=${TestData[1]}
-    PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
-    UserName=postgres@$(echo $Server | sed s/\\..*//)
+    local sql_output_file=/tmp/cmd_output_`cat /proc/sys/kernel/random/uuid`.log
     
     echo "Executing: psql command: $sql_cmd"
     
@@ -330,6 +336,7 @@ run_psql_cmd()
         exit_script "Failed to execute '$sql_cmd'" $sql_output_file
     fi
     cat $sql_output_file
+    rm -rf $sql_output_file
 }
 
 pgBenchTest ()
@@ -347,7 +354,6 @@ pgBenchTest ()
     TestMode=$PerformanceTestMode
     echo "Executing test in $TestMode mode"
 
-    Server=${TestData[1]}
     ScaleFactor=${TestData[2]}
     Connections=${TestData[3]}
     Threads=${TestData[4]}
@@ -359,10 +365,6 @@ pgBenchTest ()
     else
         echo "TestMode: $TestMode"
     fi
-
-    UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
-    PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
-    UserName=postgres@$(echo $Server | sed s/\\..*//)
 
     run_psql_cmd "select 1;"
     
@@ -379,14 +381,17 @@ pgBenchTest ()
 
     run_psql_cmd "SHOW ALL;" | grep "pg_qs.query_capture_mode\|track_activities\|track_counts\|track_functions\|track_io_timing"
     echo ""
-    echo "-------- Dropping test db ... -------- `date`"
-    run_psql_cmd "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = $pgbenchTestDatabase AND pid <> pg_backend_pid();"
 
-    run_psql_cmd "DROP DATABASE IF EXISTS $pgbenchTestDatabase;"
-    echo ""
-    echo "-------- Creating test db ... -------- `date`"
-    run_psql_cmd "CREATE DATABASE $pgbenchTestDatabase;"
-    
+    if [ DropDBonEachRun == 1 ]
+    then
+        echo "-------- Dropping test db ... -------- `date`"
+        #run_psql_cmd "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = $pgbenchTestDatabase AND pid <> pg_backend_pid();"
+        run_psql_cmd "DROP DATABASE IF EXISTS $pgbenchTestDatabase;"
+        echo ""
+        echo "-------- Creating test db ... -------- `date`"
+        run_psql_cmd "CREATE DATABASE $pgbenchTestDatabase;"
+    fi
+
     echo ""
     echo "-------- Initializing db... -------- `date`"
     echo "-------- Test parameters -------- `date`"
@@ -403,16 +408,9 @@ pgBenchTest ()
     echo ""
     echo "-------- Initializing db... Done in $((endTime-startTime)) seconds -------- "
 
-    ConnectionsList="
-    100
-    "
-    Threads=(
-    8
-    )
-    j=0
     for Connections in $ConnectionsList
     do
-        Threads=${Threads[j]}
+        Threads=$Connections
         if [ $Threads -gt `nproc` ]
         then
             Threads=`nproc`
@@ -541,12 +539,8 @@ CheckDependencies()
 
 function GetLogFileNameTag()
 {
-    TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
-    Server=${TestData[1]}
-    PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
-    UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
-    UserName=postgres@$(echo $Server | sed s/\\..*//)
-
+    ServerName=$(echo $Server | sed s/\\..*//)
+    
     track_option_list="track_io_timing
     track_functions
     track_counts
@@ -571,7 +565,7 @@ function GetLogFileNameTag()
     track_config=`echo $track_config |sed 's/T-ACT-on_T-COUNT-on_T-FUN-none_T-IOTIME-on/AzureDefault/'`
     track_config=`echo $track_config |sed 's/:/-/g'`
 
-    echo $track_config$ServerName-top-$CollectViews-$views_capture_duration
+    echo $track_config$ServerName-$CollectViews-$views_capture_duration
 }
 
 ###############################################################

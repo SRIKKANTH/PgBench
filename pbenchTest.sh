@@ -1,13 +1,20 @@
 #!/bin/bash
 set +H
-export Duration=7200
+# Settings file in csv file.
 export TestDataFile='ConnectionProperties.csv'
 
+# If you dont know how to configure above file set below creds with your server details.
 export TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
 export Server=${TestData[1]}
 export UserName=$(grep -i "DbUserName," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
 export PassWord=$(grep -i "DbPassWord," $TestDataFile | sed "s/,/ /g" | awk '{print $2}')
+
 #export UserName=postgres@$(echo $Server | sed s/\\..*//)
+
+# How many iterations do you want to run?
+export Test_Iterations=3
+
+#These conections are tested against given Server. This list is repeated $Test_Iterations times.
 export ConnectionsList="
     1
     2
@@ -19,17 +26,34 @@ export ConnectionsList="
     100
     200
     "
+# How long do you want to run each of above conections? (in seconds)
+export Duration=7200
 
-#
-export COLLECT_SERVER_STATS=0
-export CollectViews=0
-export views_capture_duration=1
-export COLLECT_query_store_stats=0
-export Test_Iterations=3
-###
-export pgbenchTestDatabase="postgres"
+# Set DropDBonEachRun=1 if you want to drop and create test db on each iteration.
 export DropDBonEachRun=0
-export pgbench_progress_interval=60
+
+# Which db to be used for testing? Note: If DropDBonEachRun=1 then it will be dropped and re-created on each iteration
+export pgbenchTestDatabase="postgres"
+
+# How often do you want pgbench to print progress (in seconds) 
+export pgbench_progress_interval=10
+
+#############################################
+# Advanced settings:
+#####################
+# Settings COLLECT_SERVER_STATS=1 will collect server VM stats if its a Linux VM installed with PG 
+export COLLECT_SERVER_STATS=0
+
+# CollectViews=1 will collect views on db check get_views routine for details
+export CollectViews=0
+# How often do you want to collect views? (in seconds)
+export views_capture_duration=1
+# COLLECT_query_store_stats=1 will collect PG query store stats if available 
+export COLLECT_query_store_stats=0
+
+###
+
+
 ##################################################################################
 
 capture_duration=$((Duration -30))
@@ -186,8 +210,10 @@ get_Column_Avg()
 
 get_views()
 {
-    view_list_1=( 'pg_stat_activity'
-    'pg_stat_replication'
+    # How often do you want to collect views? (in seconds)
+    view_
+    list_1=( 'pg_stat_activity'# 
+    'pg_stat_wal_receiver1 will PG collect query stats if available store 'pg_stat_replication'
     'pg_stat_wal_receiver'
     'pg_stat_ssl'
     'pg_stat_progress_vacuum'
@@ -253,7 +279,9 @@ get_views()
     do
         local cmd="get_viewstats $view $Server $PassWord $UserName"
         echo "Executing $cmd"  >> $TCS_RunLog
+        # How often do you want to collect views? (in seconds)
         $cmd &
+#  pids[${i}]=$1 will collect PG query store stats if available 
         pids[${i}]=$!
         ((i++))
     done
@@ -267,11 +295,15 @@ get_views()
     done
     echo "End of get_views"  >> $TCS_RunLog
 }
+# How often do you want to collect views? (in seconds)
 
+# wstats(1 will collect PG query store stats if available 
 get_viewstats()
 {
-    viewName=$1
-    Server=$2
+    # How often do you want to collect views? (in seconds)
+    viewN
+    ame=$1# 
+    PassWord=$1 will PG collect query stats if available store  Server=$2
     PassWord=$3
     UserName=$4
 
@@ -442,7 +474,9 @@ pgBenchTest ()
             then
                 procs+=( "get_views" )
             fi
+# How often do you want to collect views? (in seconds)
 
+#      # Start processes and store pids in arra1 will collect PG query store stats if available 
             # Start processes and store pids in array
             i=0
             for cmd in ${procs[*]}

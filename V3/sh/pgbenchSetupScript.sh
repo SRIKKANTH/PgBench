@@ -86,4 +86,4 @@ else
     echo "FATAL: Failed to install one or more packages"
 fi
 
-chmod +x *.sh
+

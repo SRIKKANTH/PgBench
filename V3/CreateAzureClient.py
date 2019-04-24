@@ -14,3 +14,4 @@ az vm open-port --port 22 --resource-group $ResourceGroupName --name $VmName
 
 
 az vm show -d -g $ResourceGroupName -n $VmName --query "publicIps" -o tsv
+

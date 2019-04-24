@@ -89,6 +89,11 @@ CheckDependencies()
     fi
 }
 
+lower_case()
+{
+    echo "$1" | tr '[:upper:]' '[:lower:]'
+}
+
 export TestDataFile='ConnectionProperties.csv'
 export TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
 
@@ -109,3 +114,12 @@ export LogsTableName=`grep "LogsTableName" $TestDataFile | sed "s/,/ /g"| awk '{
 export ResourceHealthTableName=`grep "ResourceHealthTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 
 #export UserName=postgres@$(echo $Server | sed s/\\..*//)
+
+#Get test and DB under test type
+TestType=`grep "TestType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+DatabaseType=`grep "DatabaseType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+
+export TestType=`lower_case $TestType`
+export DatabaseType=`lower_case $DatabaseType`
+
+

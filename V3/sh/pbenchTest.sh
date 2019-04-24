@@ -471,9 +471,7 @@ function UploadStatsToLogsDB ()
     if [ -f $ToLogsDbFileCsv ]
     then 
         echo "Pushing stats ($ToLogsDbFileCsv) to LogsDB '$LogsDbServer' into table '$LogsTableName'"
-        #PGPASSWORD=$PassWord psql -h $Server -U $UserName -d postgres -c  "\copy pgbenchperf() FROM $ToLogsDbFileCsv DELIMITER ',' CSV HEADER;" 2>&1
-
-        PGPASSWORD=$LogsDbServerPassword psql -h $LogsDbServer -U $LogsDbServerUsername -d $LogsDataBase -c "\copy $LogsTableName(TestStartTime,TestEndTime,Environment,Region,PgServer,ClientHostname,TestConnections,OsPgConnections,TPSIncConnEstablishing,AverageLatency,StdDevLatency,ScalingFactor,Duration,CpuThreadsUsed,TotalTransaction,TransactionType,QueryMode,TPSExcludingConnEstablishing,ClientOsMemoryStatsTotal,ClientOsMemoryStatsUsed,ClientOsMemoryStatsFree,ClientOsCpuUsage,PgBenchCpuUsage,PgBenchMemUsage) FROM '$ToLogsDbFileCsv' DELIMITER ',' CSV HEADER;" 2>&1
+        PGPASSWORD=$LogsDbServerPassword psql -h $LogsDbServer -U $LogsDbServerUsername -d $LogsDataBase -c "\copy $LogsTableName(Test_Start_Time,Test_End_Time,Environment,Region,Pg_Server,Client_Hostname,Test_Connections,Os_pg_Connections,TPS_Including_Connection_Establishing,Average_Latency,StdDev_Latency,Scaling_Factor,Test_Duration,Cpu_Threads_Used,Total_Transactions,Transaction_Type,Query_Mode,TPS_Excluding_Connection_Establishing,Client_Os_Memory_Stats_Total,Client_Os_Memory_Stats_Used,Client_Os_Memory_Stats_Free,Client_Os_Cpu_Usage,PgBench_Cpu_Usage,PgBench_Mem_Usage) FROM '$ToLogsDbFileCsv' DELIMITER ',' CSV HEADER;" 2>&1
     else
         echo "Cannot upload test results to db as file:'$ToLogsDbFileCsv' cannot exist"
     fi

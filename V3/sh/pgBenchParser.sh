@@ -32,7 +32,7 @@
 #     PgBench_Mem_Usage float
 # )
 #
-# Author: Srikanth Myakam 
+# Author: Srikanth Myakam
 #
 ########################################################################
 
@@ -227,8 +227,6 @@ function Parse
             echo "${PgBenchTestStartTime},${PgBenchTestEndTime},${Environment},${Region},${res_PgServer[$count]},${Client},${res_ScalingFactor[count]},${TestConnections[count]},${res_Threads[count]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchClientConnections[$count]},${res_PgBenchCpuMemUtilization[$count]},${res_Network_rx_Server[$count]},${res_Network_tx_Server[$count]},${res_PgConnections_Server[$count]},${res_OsCpuUsage_Server[$count]},${res_OsMemoryStats_Server[$count]},${res_ServerDiskAverage_sdc_Server[$count]},${res_ServerDiskMinMaxIOPS_sdc_Server[$count]},${res_ServerDiskMinMaxReadMBps_sdc_Server[$count]},${res_ServerDiskMinMaxWriteMBps_sdc_Server[$count]},${res_ServerDiskAverage_sdd_Server[$count]},${res_ServerDiskMinMaxIOPS_sdd_Server[$count]},${res_ServerDiskMinMaxReadMBps_sdd_Server[$count]},${res_ServerDiskMinMaxWriteMBps_sdd_Server[$count]},$trackOptions"  >> $csv_file
         else
             echo "${PgBenchTestStartTime},${PgBenchTestEndTime},${Environment},${Region},${res_PgServer[$count]},${ClientHostName},${TestConnections[count]},${res_PgBenchClientConnections[$count]},${res_TPSIncConnEstablishing[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_ScalingFactor[count]},${res_Duration[$count]},${res_Threads[count]},${res_TotalTransaction[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchCpuMemUtilization[$count]}" >> $csv_file
-
-            echo "${PgBenchTestStartTime},${PgBenchTestEndTime},${Environment},${Region},${res_PgServer[$count]},${Client},${res_ScalingFactor[count]},${TestConnections[count]},${res_Threads[count]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchClientConnections[$count]},${res_PgBenchCpuMemUtilization[$count]},${res_PgServer[$count]},$trackOptions" >> Tracking.csv
         fi
         ((count++))
     done

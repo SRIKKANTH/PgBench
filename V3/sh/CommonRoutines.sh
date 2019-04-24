@@ -1,7 +1,35 @@
 #!/bin/bash
 #
-# This common routines for pgbench automation.
+# This common routines for DB benchmark automation.
 #
+# 
+# CREATE TABLE Client_info
+# (
+#     Client_Hostname VARCHAR(100) NOT NULL PRIMARY KEY, 
+#     Client_Last_HeartBeat timestamp,
+#     Test_Server_Assigned VARCHAR(100),
+#     Client_Region VARCHAR(25),
+#     Client_Resource_Group VARCHAR(25),
+#     Client_SKU VARCHAR(25),
+#     Client_Username VARCHAR(25),
+#     Client_Password VARCHAR(25),
+#     Client_FQDN VARCHAR(100)
+# );
+# 
+# CREATE TABLE Server_Info
+# (
+#     Test_Server VARCHAR(100) NOT NULL PRIMARY KEY, 
+#     Server_Last_HeartBeat timestamp,
+#     Test_Server_Region VARCHAR(25),
+#     Test_Server_Environment VARCHAR(25),
+#     Test_Database_Type  VARCHAR(25),
+#     vCores INT,
+#     Storage_In_MB INT,
+#     Test_Server_Username VARCHAR(25),
+#     Test_Server_Password VARCHAR(25),
+#     Test_Database_Name VARCHAR(25)
+# );
+# 
 # Author: Srikanth Myakam
 #
 ########################################################################
@@ -89,21 +117,31 @@ CheckDependencies()
     fi
 }
 
-lower_case()
+LowerCase()
 {
     echo "$1" | tr '[:upper:]' '[:lower:]'
 }
 
+exit_script()
+{
+    echo $1
+    SendMail $LogFile "$1" $2
+    exit 
+}
+
+ExecuteQueryOnLogsDB()
+{
+    sql_cmd="$@"
+    #echo "executing query '$sql_cmd' on LogsDbServer='$LogsDbServer'"
+    PGPASSWORD=$LogsDbServerPassword psql -h $LogsDbServer -U $LogsDbServerUsername -d $LogsDataBase -c "$sql_cmd" 
+}
+#-------------------------------------------------------------------
+#   Execution starts from here
+#-------------------------------------------------------------------
+
+# Read config from config file
 export TestDataFile='ConnectionProperties.csv'
 export TestData=($(grep "`hostname`," $TestDataFile | sed "s/,/ /g"))
-
-# Test Server Details
-export Server=${TestData[1]}
-export UserName=${TestData[4]}
-export PassWord=${TestData[5]}
-export TestDatabase='postgres'
-export Environment=${TestData[6]}
-export Region=${TestData[7]}
 
 # Logs DB SQL server details
 export LogsDbServer=`grep "LogsDbServer\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
@@ -112,14 +150,49 @@ export LogsDbServerPassword=`grep "LogsDbServerPassword\b" $TestDataFile | sed "
 export LogsDataBase=`grep "LogsDataBase" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 export LogsTableName=`grep "LogsTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 export ResourceHealthTableName=`grep "ResourceHealthTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+export ServerInfoTableName=`grep "ServerInfoTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+export ClientInfoTableName=`grep "ClientInfoTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 
-#export UserName=postgres@$(echo $Server | sed s/\\..*//)
+# Get Test Server assigned for this client from '$ClientInfoTableName' table
+Client_Hostname=`hostname`
+Client_Info=($(ExecuteQueryOnLogsDB "select * from $ClientInfoTableName  where client_hostname='$Client_Hostname'" | grep $Client_Hostname|sed 's/ //g'|sed 's/|/,/g'|sed 's/,/ /g'))
 
-#Get test and DB under test type
+if [ -z $Client_Info ] 
+then
+    echo "FATAL: Cannot find my detaials ('$Client_Hostname') deatils in ClientInfoTableName:$ClientInfoTableName"
+    echo "Exitting ..."
+    exit -1
+fi
+
+export Server=${Client_Info[2]}
+
+# Get Test Server details from $ServerInfoTableName table
+Server_Info=($(ExecuteQueryOnLogsDB "select * from $ServerInfoTableName  where Test_Server='$Server'" | grep $Server|sed 's/ //g'|sed 's/|/,/g'|sed 's/,/ /g'))
+
+if [ -z $Server_Info ] 
+then
+    echo "FATAL: Cannot find Server('Server') deatils in ServerInfoTableName:$ServerInfoTableName"
+    echo "Exitting ..."
+    exit -1
+fi
+
+export Region=${Server_Info[2]}
+export Environment=${Server_Info[3]}
+export TestDatabaseType=${Server_Info[4]}
+export UserName=${Server_Info[7]}
+export PassWord=${Server_Info[8]}
+export TestDatabase=${Server_Info[9]}
+
+echo "Region=${Server_Info[2]} \
+Environment=${Server_Info[3]} \
+TestDatabaseType=${Server_Info[4]} \
+UserName=${Server_Info[7]} \
+PassWord=${Server_Info[8]} \
+TestDatabase=${Server_Info[9]}"
+
+#Get test and DB under test type from test config
 TestType=`grep "TestType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
-DatabaseType=`grep "DatabaseType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+TestDatabaseType=`grep "TestDatabaseType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 
-export TestType=`lower_case $TestType`
-export DatabaseType=`lower_case $DatabaseType`
-
-
+export TestType=`LowerCase $TestType`
+export TestDatabaseType=`LowerCase $TestDatabaseType`

@@ -31,7 +31,7 @@ export COLLECT_query_store_stats=0
 export Test_Iterations=1
 export ParseLogsAfterTest=1
 ###
-export pgbenchTestDatabase="postgres"
+
 export DropDBonEachRun=0
 export pgbench_progress_interval=60
 ##################################################################################
@@ -254,13 +254,6 @@ get_viewstats()
         PGPASSWORD=$PassWord psql -h $Server -U $UserName -d postgres -c "select CURRENT_TIMESTAMP, *  $viewName" >> $LogFile
         sleep $views_capture_duration
     done
-}
-
-exit_script()
-{
-    echo $1
-    SendMail $LogFile "$1" $2
-    exit 
 }
 
 run_cmd()
@@ -511,10 +504,15 @@ function GetLogFileNameTag()
 ###############################################################
 ##              Script Execution Starts from here
 ###############################################################
-export PATH="$PATH:/opt/mssql-tools/bin"
+
 . CommonRoutines.sh
+
 CheckDependencies
+export pgbenchTestDatabase=$TestDatabase
 Current_Test_Iteration=0
+echo "" > $HOME/UpdateResourceHeathToLogsDB.log
+echo "" > $HOME/runLog.log
+
 while [ $Test_Iterations -gt $Current_Test_Iteration ]
 do
     echo "------------------------------Executing Test Iteration: $Current_Test_Iteration at "`date`"------------------------------"

@@ -1,28 +1,29 @@
 #!/bin/bash
 ########################################################################
 #
-#Updates the state of client VM and accessiblity status of PG Server
+# Updates the state of client VM and accessiblity status of PG Server
 #
 # The table on the logs db is as below:
 #
 # CREATE TABLE ResourceHealth
 # (
-#   Client_Hostname VARCHAR(100) NOT NULL PRIMARY KEY, 
-#   Test_Server VARCHAR(100),
-#   Test_Server_Environment VARCHAR(25),
-#   Test_Server_Region VARCHAR(25),
-#   Database_Type  VARCHAR(25),
-#   Test_Type VARCHAR(25),
-#   Client_Last_HeartBeat timestamp,
-#   Server_Last_HeartBeat timestamp,
-#   Is_Test_Server_Accessible_From_Client VARCHAR(25),
-#   Is_Test_Executing VARCHAR(25),
-#   Current_Test_Active_Connections int,
-#   Client_Memory_Usage_Percentage float,
-#   Client_Cpu_Usage_Percentage float,
-#   Client_Root_Disk_Usage_Percentage float,
-#   Recent_Test_Logs VARCHAR(300)
-# )
+#     Client_Hostname VARCHAR(100) NOT NULL PRIMARY KEY, 
+#     Test_Server VARCHAR(100),
+#     Test_Server_Environment VARCHAR(25),
+#     Test_Server_Region VARCHAR(25),
+#     Test_Database_Type  VARCHAR(25),
+#     Test_Type VARCHAR(25),
+#     Client_Last_HeartBeat timestamp,
+#     Server_Last_HeartBeat timestamp,
+#     Is_Test_Server_Accessible_From_Client VARCHAR(25),
+#     Is_Test_Executing VARCHAR(25),
+#     Current_Test_Active_Connections int,
+#     Client_Memory_Usage_Percentage float,
+#     Client_Cpu_Usage_Percentage float,
+#     Client_Root_Disk_Usage_Percentage float,
+#     Recent_Test_Logs VARCHAR(300),
+#     Client_Last_Reboot VARCHAR(25)
+# );
 #
 # Author: Srikanth Myakam
 #
@@ -34,7 +35,7 @@ export UpdateResourceHeathToLogsDBLogFile=$HOME/UpdateResourceHeathToLogsDB.log
 function IsTestServerAccessibleFromClient ()
 {
     Is_Test_Server_Accessible_From_Client='No'
-    if [ 'postgres' == $DatabaseType ] 
+    if [ 'postgres' == $TestDatabaseType ] 
     then
         # Get PG Server Status
         PGPASSWORD=$PassWord pg_isready -h $Server -U $UserName > /dev/null && Is_Test_Server_Accessible_From_Client='Yes'
@@ -42,6 +43,17 @@ function IsTestServerAccessibleFromClient ()
         Is_Test_Server_Accessible_From_Client='UnknownDB'
     fi
     echo $Is_Test_Server_Accessible_From_Client
+}
+
+function CurrentTestActiveConnections ()
+{
+    Current_Test_Active_Connections=0
+    
+    if [ 'pgbench' == $TestType ] 
+    then
+        Current_Test_Active_Connections=`netstat -napt 2>/dev/null | grep pgbench | wc -l`
+    fi
+    echo $Current_Test_Active_Connections
 }
 
 function IsTestExecuting ()
@@ -63,13 +75,13 @@ function IsTestExecuting ()
 
 function UpdateResourceHeathToLogsDB ()
 {
-    echo "Pushing stats ($ToLogsDbFileCsv) to LogsDB '$LogsDbServer' into table '$ResourceHealthTableName' ------ " `GetCurrentDateTimeInSQLFormat`
+    echo "Pushing stats to LogsDB '$LogsDbServer' into table '$ResourceHealthTableName' ------ " `GetCurrentDateTimeInSQLFormat`
 
     Client_Hostname=`hostname`
     Test_Server=$Server
     Test_Server_Environment=$Environment
     Test_Server_Region=$Region
-    Database_Type=$DatabaseType
+    Test_Database_Type=$TestDatabaseType
     Test_Type=$TestType
 
     Client_Last_HeartBeat=`GetCurrentDateTimeInSQLFormat`
@@ -86,12 +98,26 @@ function UpdateResourceHeathToLogsDB ()
 
     Is_Test_Executing=`IsTestExecuting`
 
-    Recent_Test_Logs=`tail -5 Logs/*.log| tail -c 300`
+    # Get few latest lines from test log
+    Recent_Test_Logs=''
+    Recent_Test_Logs=`tail -5 $HOME/Logs/*.log 2>/dev/null | tail -c 300`
 
-    Current_Test_Active_Connections=`netstat -napt 2>/dev/null | grep pgbench | wc -l`
+    if [ -z "$Recent_Test_Logs" ]
+    then
+        Recent_Test_Logs=`tail -5 $HOME/runLog.log 2>/dev/null | tail -c 300`
+        if [ -z "$Recent_Test_Logs" ]
+        then
+            Recent_Test_Logs="Sorry no logs available!"
+        fi
+    fi
+    # Check many connections are established between client and server
+    Current_Test_Active_Connections=`CurrentTestActiveConnections`
+    
+    # Now get some Client Linux VM stats
     Client_Memory_Usage_Percentage=`free | grep Mem | awk '{print $3/$2 * 100.0}'`
     Client_Cpu_Usage_Percentage=`top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}'`
     Client_Root_Disk_Usage_Percentage=`df -h| grep "\/$"| awk '{print $5}'| sed "s/%//"`
+    Client_Last_Reboot=`uptime | awk '{print $3,$4}'| sed 's/,//'`
 
     # Check if an entry aleady exists for this client
     RowExists='No'
@@ -112,39 +138,41 @@ function UpdateResourceHeathToLogsDB ()
     if [ $RowExists == 'No' ]
     then
         # Insert a new row if one doesn't exists for this client
-            sql_cmd="INSERT INTO $ResourceHealthTableName ( \
-                    Client_Hostname, \
-                    Test_Server, \
-                    Test_Server_Environment, \
-                    Test_Server_Region, \
-                    Database_Type, \
-                    Test_Type, \
-                    Client_Last_HeartBeat, \
-                    Server_Last_HeartBeat, \
-                    Is_Test_Server_Accessible_From_Client, \
-                    Is_Test_Executing, \
-                    Current_Test_Active_Connections, \
-                    Client_Memory_Usage_Percentage, \
-                    Client_Cpu_Usage_Percentage, \
-                    Client_Root_Disk_Usage_Percentage, \
-                    Recent_Test_Logs \
-                ) VALUES ( 
-                    '$Client_Hostname', \
-                    '$Test_Server', \
-                    '$Test_Server_Environment', \
-                    '$Test_Server_Region', \
-                    '$Database_Type', \
-                    '$Test_Type', \
-                    '$Client_Last_HeartBeat', \
-                    '$Server_Last_HeartBeat', \
-                    '$Is_Test_Server_Accessible_From_Client', \
-                    '$Is_Test_Executing', \
-                    $Current_Test_Active_Connections, \
-                    $Client_Memory_Usage_Percentage, \
-                    $Client_Cpu_Usage_Percentage, \
-                    $Client_Root_Disk_Usage_Percentage, \
-                    '$Recent_Test_Logs' \
-            );"
+        sql_cmd="INSERT INTO $ResourceHealthTableName ( \
+                Client_Hostname, \
+                Test_Server, \
+                Test_Server_Environment, \
+                Test_Server_Region, \
+                Test_Database_Type, \
+                Test_Type, \
+                Client_Last_HeartBeat, \
+                Server_Last_HeartBeat, \
+                Is_Test_Server_Accessible_From_Client, \
+                Is_Test_Executing, \
+                Current_Test_Active_Connections, \
+                Client_Memory_Usage_Percentage, \
+                Client_Cpu_Usage_Percentage, \
+                Client_Root_Disk_Usage_Percentage, \
+                Recent_Test_Logs, \
+                Client_Last_Reboot \
+            ) VALUES ( 
+                '$Client_Hostname', \
+                '$Test_Server', \
+                '$Test_Server_Environment', \
+                '$Test_Server_Region', \
+                '$Test_Database_Type', \
+                '$Test_Type', \
+                '$Client_Last_HeartBeat', \
+                '$Server_Last_HeartBeat', \
+                '$Is_Test_Server_Accessible_From_Client', \
+                '$Is_Test_Executing', \
+                $Current_Test_Active_Connections, \
+                $Client_Memory_Usage_Percentage, \
+                $Client_Cpu_Usage_Percentage, \
+                $Client_Root_Disk_Usage_Percentage, \
+                '$Recent_Test_Logs', \
+                '$Client_Last_Reboot' \
+        );"
     else
         # Update the row if one exists for this client
         if [ $Is_Test_Server_Accessible_From_Client == 'Yes' ] 
@@ -155,7 +183,7 @@ function UpdateResourceHeathToLogsDB ()
                 Test_Server='$Test_Server', \
                 Test_Server_Environment='$Test_Server_Environment', \
                 Test_Server_Region='$Test_Server_Region', \
-                Database_Type='$Database_Type', \
+                Test_Database_Type='$Test_Database_Type', \
                 Test_Type='$Test_Type', \
                 Client_Last_HeartBeat='$Client_Last_HeartBeat', \
                 Server_Last_HeartBeat='$Server_Last_HeartBeat', \
@@ -165,7 +193,8 @@ function UpdateResourceHeathToLogsDB ()
                 Client_Memory_Usage_Percentage=$Client_Memory_Usage_Percentage, \
                 Client_Cpu_Usage_Percentage=$Client_Cpu_Usage_Percentage, \
                 Client_Root_Disk_Usage_Percentage=$Client_Root_Disk_Usage_Percentage, \
-                Recent_Test_Logs='$Recent_Test_Logs' \
+                Recent_Test_Logs='$Recent_Test_Logs', \
+                Client_Last_Reboot='$Client_Last_Reboot' \
             WHERE Client_Hostname='$Client_Hostname'"
         else
         # If Test_Server is NOT accessible skip 'Server_Last_HeartBeat' value and update all values
@@ -174,7 +203,7 @@ function UpdateResourceHeathToLogsDB ()
                 Test_Server='$Test_Server', \
                 Test_Server_Environment='$Test_Server_Environment', \
                 Test_Server_Region='$Test_Server_Region', \
-                Database_Type='$Database_Type', \
+                Test_Database_Type='$Test_Database_Type', \
                 Test_Type='$Test_Type', \
                 Client_Last_HeartBeat='$Client_Last_HeartBeat', \
                 Is_Test_Server_Accessible_From_Client='$Is_Test_Server_Accessible_From_Client', \
@@ -184,13 +213,32 @@ function UpdateResourceHeathToLogsDB ()
                 Client_Cpu_Usage_Percentage=$Client_Cpu_Usage_Percentage, \
                 Client_Root_Disk_Usage_Percentage=$Client_Root_Disk_Usage_Percentage, \
                 Recent_Test_Logs='$Recent_Test_Logs' \
+                Client_Last_Reboot='$Client_Last_Reboot' \
             WHERE Client_Hostname='$Client_Hostname'"
         fi
     fi
 
-    echo "executing sqlcmd : $sql_cmd"
-    PGPASSWORD=$LogsDbServerPassword psql -h $LogsDbServer -U $LogsDbServerUsername -d $LogsDataBase -c "$sql_cmd" 
+    # Insert / Update heart beat info  into $ResourceHealthTableName table of the logs DB
+    ExecuteQueryOnLogsDB "$sql_cmd"
+
+    # Update heart beat info  into $ServerInfoTableName table of the logs DB
+    sql_cmd="UPDATE $ServerInfoTableName \
+        set \
+            Server_Last_HeartBeat='$Server_Last_HeartBeat' \
+        WHERE Test_Server='$Test_Server'"
+
+    ExecuteQueryOnLogsDB "$sql_cmd"
+
+    # Update heart beat info  into $ClientInfoTableName table of the logs DB
+    sql_cmd="UPDATE $ClientInfoTableName \
+        set \
+            Client_Last_HeartBeat='$Client_Last_HeartBeat' \
+        WHERE Client_Hostname='$Client_Hostname'"  
+
+    ExecuteQueryOnLogsDB "$sql_cmd"
 }
+#------------------------------
 
 echo "-------------------------------- `GetCurrentDateTimeInSQLFormat` -------------------------------- " >> $UpdateResourceHeathToLogsDBLogFile
+
 UpdateResourceHeathToLogsDB >> $UpdateResourceHeathToLogsDBLogFile 2>&1

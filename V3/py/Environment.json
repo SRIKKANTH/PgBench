@@ -1,0 +1,13 @@
+{
+    "SubscriptionName":"",
+    "SubscriptionId":"",
+    "ResourceGroupName":"",
+    "Region":"southcentralus",
+    "InstanceSize":"Standard_D2s_v3",
+    "Username":"",
+    "Password":"",
+    "VirtualMachineName":"",
+    "OSImage":"",
+    "ServerDetails":{
+    }
+}

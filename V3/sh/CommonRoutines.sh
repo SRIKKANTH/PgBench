@@ -2,7 +2,6 @@
 #
 # This common routines for DB benchmark automation.
 #
-# 
 # CREATE TABLE Client_info
 # (
 #     Client_Hostname VARCHAR(100) NOT NULL PRIMARY KEY, 
@@ -97,7 +96,7 @@ function get_Sum()
     echo $sum
 }
 
-CheckDependencies()
+function CheckDependencies()
 {
     if [ ! -f ConnectionProperties.csv ]; then
         echo "ERROR: ConnectionProperties.csv: File not found!"
@@ -117,22 +116,22 @@ CheckDependencies()
     fi
 }
 
-LowerCase()
+function LowerCase()
 {
     echo "$1" | tr '[:upper:]' '[:lower:]'
 }
 
-exit_script()
+function exit_script()
 {
     echo $1
     SendMail $LogFile "$1" $2
     exit 
 }
 
-ExecuteQueryOnLogsDB()
+function ExecuteQueryOnLogsDB()
 {
+    # Warning: Don't keep any echo statments inthis routie as the output of this function used as it is.
     sql_cmd="$@"
-    #echo "executing query '$sql_cmd' on LogsDbServer='$LogsDbServer'"
     PGPASSWORD=$LogsDbServerPassword psql -h $LogsDbServer -U $LogsDbServerUsername -d $LogsDataBase -c "$sql_cmd" 
 }
 #-------------------------------------------------------------------
@@ -157,7 +156,7 @@ export ClientInfoTableName=`grep "ClientInfoTableName" $TestDataFile | sed "s/,/
 Client_Hostname=`hostname`
 Client_Info=($(ExecuteQueryOnLogsDB "select * from $ClientInfoTableName  where client_hostname='$Client_Hostname'" | grep $Client_Hostname|sed 's/ //g'|sed 's/|/,/g'|sed 's/,/ /g'))
 
-if [ -z $Client_Info ] 
+if [ -z "$Client_Info" ] 
 then
     echo "FATAL: Cannot find my detaials ('$Client_Hostname') deatils in ClientInfoTableName:$ClientInfoTableName"
     echo "Exitting ..."
@@ -165,11 +164,12 @@ then
 fi
 
 export Server=${Client_Info[2]}
+export Client_VM_SKU=${Client_Info[5]}
 
 # Get Test Server details from $ServerInfoTableName table
 Server_Info=($(ExecuteQueryOnLogsDB "select * from $ServerInfoTableName  where Test_Server='$Server'" | grep $Server|sed 's/ //g'|sed 's/|/,/g'|sed 's/,/ /g'))
 
-if [ -z $Server_Info ] 
+if [ -z "$Server_Info" ] 
 then
     echo "FATAL: Cannot find Server('Server') deatils in ServerInfoTableName:$ServerInfoTableName"
     echo "Exitting ..."
@@ -178,17 +178,15 @@ fi
 
 export Region=${Server_Info[2]}
 export Environment=${Server_Info[3]}
-export TestDatabaseType=${Server_Info[4]}
+export Test_Server_Edition=${Server_Info[4]}
+export Test_Server_CPU_Cores=${Server_Info[5]}
+export Test_Server_Storage_In_MB=${Server_Info[6]}
 export UserName=${Server_Info[7]}
 export PassWord=${Server_Info[8]}
-export TestDatabase=${Server_Info[9]}
+export TestDatabaseType=${Server_Info[9]}
+export TestDatabase=${Server_Info[10]}
 
-echo "Region=${Server_Info[2]} \
-Environment=${Server_Info[3]} \
-TestDatabaseType=${Server_Info[4]} \
-UserName=${Server_Info[7]} \
-PassWord=${Server_Info[8]} \
-TestDatabase=${Server_Info[9]}"
+echo ",Region=${Server_Info[2]},Environment=${Server_Info[3]},Test_Server_Edition=${Server_Info[4]},Test_Server_CPU_Cores=${Server_Info[5]},Test_Server_Storage_In_MB=${Server_Info[6]},UserName=${Server_Info[7]},PassWord=${Server_Info[8]},TestDatabaseType=${Server_Info[9]},TestDatabase=${Server_Info[10]},Client_VM_SKU=${Client_Info[5]}"
 
 #Get test and DB under test type from test config
 TestType=`grep "TestType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`

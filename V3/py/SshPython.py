@@ -4,7 +4,6 @@ import sys
 import traceback
 import paramiko
 
-
 # setup logging
 paramiko.util.log_to_file("ssh.log")
 # Paramiko client configuration
@@ -111,10 +110,11 @@ def do_sftp (hostname,username,password,srcfilename,dstfilename=None,operation='
         sys.exit(1)
     return True
 
+if __name__ == '__main__':
 ##########
-hostname = ''
-username = ''
-password = ''
+    hostname = ''
+    username = ''
+    password = ''
 
-ssh_exec_cmd(hostname,username,password,'ifconfig>ifconfig.log')
-do_sftp (hostname,username,password,srcfilename='output.file',operation='get',Port=22)
+    ssh_exec_cmd(hostname,username,password,'ifconfig>ifconfig.log')
+    do_sftp (hostname,username,password,srcfilename='ifconfig.file',operation='get',Port=22)

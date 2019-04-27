@@ -5,11 +5,11 @@
 # Author: Srikanth Myakam
 #
 ########################################################################
+export InstallationFailed='No'
 
 function InstallDependencies()
 {
-    local InstallationFailed='No'
-
+    
     sudo DEBIAN_FRONTEND=noninteractive apt --assume-yes --fix-broken -y install
     sudo apt-get update
     
@@ -64,7 +64,7 @@ function InstallDependencies()
 
 InstallDependencies
 
-if [ $InstallationFailed == 'no' ]
+if [ $InstallationFailed == 'No' ]
 then
     #
     CodePath=$HOME

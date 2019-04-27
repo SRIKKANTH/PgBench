@@ -112,12 +112,16 @@ function UpdateResourceHeathToLogsDB ()
     fi
     # Check many connections are established between client and server
     Current_Test_Active_Connections=`CurrentTestActiveConnections`
-    
+
     # Now get some Client Linux VM stats
     Client_Memory_Usage_Percentage=`free | grep Mem | awk '{print $3/$2 * 100.0}'`
     Client_Cpu_Usage_Percentage=`top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}'`
     Client_Root_Disk_Usage_Percentage=`df -h| grep "\/$"| awk '{print $5}'| sed "s/%//"`
-    Client_Last_Reboot=`uptime | awk '{print $3,$4}'| sed 's/,//'`
+    Client_Last_Reboot=`uptime -p | sed 's/^up //'`
+
+    # -----------------------------------------------------------------------------------
+    # Insert / Update heart beat info  into $ResourceHealthTableName table of the logs DB
+    # -----------------------------------------------------------------------------------
 
     # Check if an entry aleady exists for this client
     RowExists='No'
@@ -172,7 +176,7 @@ function UpdateResourceHeathToLogsDB ()
                 $Client_Root_Disk_Usage_Percentage, \
                 '$Recent_Test_Logs', \
                 '$Client_Last_Reboot' \
-        );"
+        ); "
     else
         # Update the row if one exists for this client
         if [ $Is_Test_Server_Accessible_From_Client == 'Yes' ] 
@@ -195,7 +199,7 @@ function UpdateResourceHeathToLogsDB ()
                 Client_Root_Disk_Usage_Percentage=$Client_Root_Disk_Usage_Percentage, \
                 Recent_Test_Logs='$Recent_Test_Logs', \
                 Client_Last_Reboot='$Client_Last_Reboot' \
-            WHERE Client_Hostname='$Client_Hostname'"
+            WHERE Client_Hostname='$Client_Hostname'; "
         else
         # If Test_Server is NOT accessible skip 'Server_Last_HeartBeat' value and update all values
             sql_cmd="UPDATE $ResourceHealthTableName  \
@@ -214,27 +218,22 @@ function UpdateResourceHeathToLogsDB ()
                 Client_Root_Disk_Usage_Percentage=$Client_Root_Disk_Usage_Percentage, \
                 Recent_Test_Logs='$Recent_Test_Logs' \
                 Client_Last_Reboot='$Client_Last_Reboot' \
-            WHERE Client_Hostname='$Client_Hostname'"
+            WHERE Client_Hostname='$Client_Hostname'; "
         fi
     fi
 
-    # Insert / Update heart beat info  into $ResourceHealthTableName table of the logs DB
-    ExecuteQueryOnLogsDB "$sql_cmd"
-
     # Update heart beat info  into $ServerInfoTableName table of the logs DB
-    sql_cmd="UPDATE $ServerInfoTableName \
+    sql_cmd=$sql_cmd"UPDATE $ServerInfoTableName \
         set \
             Server_Last_HeartBeat='$Server_Last_HeartBeat' \
-        WHERE Test_Server='$Test_Server'"
-
-    ExecuteQueryOnLogsDB "$sql_cmd"
+        WHERE Test_Server='$Test_Server' ; "
 
     # Update heart beat info  into $ClientInfoTableName table of the logs DB
-    sql_cmd="UPDATE $ClientInfoTableName \
+    sql_cmd=$sql_cmd"UPDATE $ClientInfoTableName \
         set \
             Client_Last_HeartBeat='$Client_Last_HeartBeat' \
-        WHERE Client_Hostname='$Client_Hostname'"  
-
+        WHERE Client_Hostname='$Client_Hostname'; "  
+    # 1 Query for all the updates/inserts
     ExecuteQueryOnLogsDB "$sql_cmd"
 }
 #------------------------------

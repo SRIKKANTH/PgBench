@@ -134,6 +134,7 @@ function ExecuteQueryOnLogsDB()
     sql_cmd="$@"
     PGPASSWORD=$LogsDbServerPassword psql -h $LogsDbServer -U $LogsDbServerUsername -d $LogsDataBase -c "$sql_cmd" 
 }
+
 #-------------------------------------------------------------------
 #   Execution starts from here
 #-------------------------------------------------------------------
@@ -151,46 +152,88 @@ export LogsTableName=`grep "LogsTableName" $TestDataFile | sed "s/,/ /g"| awk '{
 export ResourceHealthTableName=`grep "ResourceHealthTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 export ServerInfoTableName=`grep "ServerInfoTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 export ClientInfoTableName=`grep "ClientInfoTableName" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+export ScheduledTestsTable=`grep "ScheduledTestsTable" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 
-# Get Test Server assigned for this client from '$ClientInfoTableName' table
-Client_Hostname=`hostname`
-Client_Info=($(ExecuteQueryOnLogsDB "select * from $ClientInfoTableName  where client_hostname='$Client_Hostname'" | grep $Client_Hostname|sed 's/ //g'|sed 's/|/,/g'|sed 's/,/ /g'))
+export Client_Hostname=`hostname`
+export Duration=""
+export ConnectionsList=()
+export ScaleFactor=""
 
-if [ -z "$Client_Info" ] 
+
+# Get test config assigned for this server from logs db server
+rm -rf $HOME/test_config.sh > /dev/null 2>&1 
+ExecuteQueryOnLogsDB "select test_parameters_script from $ScheduledTestsTable WHERE Client_Hostname='$Client_Hostname';" | sed 's/+//'| sed 's/^ //'| grep -v "^[-(]"| sed s/test_parameters_script// > $HOME/test_config.sh
+
+if [ `wc $HOME/test_config.sh | awk '{print $2}'` == 0 ]
 then
-    echo "FATAL: Cannot find my detaials ('$Client_Hostname') deatils in ClientInfoTableName:$ClientInfoTableName"
-    echo "Exitting ..."
-    exit -1
+    echo "I couldn't find any test configuration assigned for me ($Client_Hostname) on log server"
+else
+    . $HOME/test_config.sh
+    # Get Test Server assigned for this client from '$ClientInfoTableName' table
+    Client_Info=($(ExecuteQueryOnLogsDB "select * from $ClientInfoTableName  where client_hostname='$Client_Hostname'" | grep $Client_Hostname|sed 's/ //g'|sed 's/|/,/g'|sed 's/,/ /g'))
+
+    if [ -z "$Client_Info" ] 
+    then
+        echo "FATAL: Cannot find my details ('$Client_Hostname') in ClientInfoTableName:$ClientInfoTableName"
+        echo "FATAL: Cannot run any tests"
+    else
+        export Client_VM_SKU=${Client_Info[5]}
+
+        Scheduled_Test_Info=($(ExecuteQueryOnLogsDB "select * from $ScheduledTestsTable  where client_hostname='$Client_Hostname'" | grep $Client_Hostname|sed 's/ //g'|sed 's/|/,/g'|sed 's/,/ /g'))
+
+        if [ -z "$Scheduled_Test_Info" ]
+        then
+            echo "INFO: Cannot find any scheduled tests for me ('$Client_Hostname') deatils in Scheduled_Test_Info:$Scheduled_Test_Info"
+            echo "INFO: No test will be executed"
+        else
+            export Server=${Scheduled_Test_Info[1]}
+            if [ -z "$Server" ]
+            then
+                echo "INFO: No server assigned for me ('$Client_Hostname') in ScheduledTestsTable:$ScheduledTestsTable"
+                echo "INFO: No test will be executed"
+            else
+                echo "INFO: Server assigned for me ('$Client_Hostname') is: $Server"
+                
+                # Update $ClientInfoTableName table with this server
+                sql_cmd="UPDATE $ClientInfoTableName  \
+                        set \
+                            Test_Server_Assigned='$Server' \
+                        WHERE Client_Hostname='$Client_Hostname'; "
+
+                ExecuteQueryOnLogsDB "$sql_cmd"
+
+                # Now get Test Server details from $ServerInfoTableName table
+                Server_Info=($(ExecuteQueryOnLogsDB "select * from $ServerInfoTableName  where Test_Server='$Server'" | grep $Server|sed 's/ //g'|sed 's/|/,/g'|sed 's/,/ /g'))
+
+                if [ -z "$Server_Info" ] 
+                then
+                    echo "FATAL: Cannot find Server ('$Server') deatils in ServerInfoTableName:$ServerInfoTableName"
+                    echo "FATAL: No test will be executed"
+                else
+                    export Region=${Server_Info[2]}
+                    export Environment=${Server_Info[3]}
+                    export Test_Server_Edition=${Server_Info[4]}
+                    export Test_Server_CPU_Cores=${Server_Info[5]}
+                    export Test_Server_Storage_In_MB=${Server_Info[6]}
+                    export UserName=${Server_Info[7]}
+                    export PassWord=${Server_Info[8]}
+                    export TestDatabaseType=${Server_Info[9]}
+                    export TestDatabase=${Server_Info[10]}
+
+                    #Get test and DB under test type from test config
+                    TestType=`grep "TestType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+                    TestDatabaseType=`grep "TestDatabaseType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+
+                    export TestType=`LowerCase $TestType`
+                    export TestDatabaseType=`LowerCase $TestDatabaseType`
+
+                    printf "Client_Hostname=$Client_Hostname\nServer=$Server\nRegion=${Server_Info[2]}\nEnvironment=${Server_Info[3]}\nTest_Server_Edition=${Server_Info[4]}\nTest_Server_CPU_Cores=${Server_Info[5]}\nTest_Server_Storage_In_MB=${Server_Info[6]}\nUserName=${Server_Info[7]}\nPassWord=${Server_Info[8]}\nTestDatabaseType=${Server_Info[9]}\nTestDatabase=${Server_Info[10]}\nClient_VM_SKU=${Client_Info[5]}\nTestType=$TestType\nTestDatabaseType=$TestDatabaseType\n"
+                    printf "Test Configuration: \n Duration:$Duration\n ScaleFactor:$ScaleFactor\n"
+                    echo "ConnectionsList:${ConnectionsList[@]}"
+                fi
+            fi
+        fi
+    fi
 fi
 
-export Server=${Client_Info[2]}
-export Client_VM_SKU=${Client_Info[5]}
 
-# Get Test Server details from $ServerInfoTableName table
-Server_Info=($(ExecuteQueryOnLogsDB "select * from $ServerInfoTableName  where Test_Server='$Server'" | grep $Server|sed 's/ //g'|sed 's/|/,/g'|sed 's/,/ /g'))
-
-if [ -z "$Server_Info" ] 
-then
-    echo "FATAL: Cannot find Server('Server') deatils in ServerInfoTableName:$ServerInfoTableName"
-    echo "Exitting ..."
-    exit -1
-fi
-
-export Region=${Server_Info[2]}
-export Environment=${Server_Info[3]}
-export Test_Server_Edition=${Server_Info[4]}
-export Test_Server_CPU_Cores=${Server_Info[5]}
-export Test_Server_Storage_In_MB=${Server_Info[6]}
-export UserName=${Server_Info[7]}
-export PassWord=${Server_Info[8]}
-export TestDatabaseType=${Server_Info[9]}
-export TestDatabase=${Server_Info[10]}
-
-echo ",Region=${Server_Info[2]},Environment=${Server_Info[3]},Test_Server_Edition=${Server_Info[4]},Test_Server_CPU_Cores=${Server_Info[5]},Test_Server_Storage_In_MB=${Server_Info[6]},UserName=${Server_Info[7]},PassWord=${Server_Info[8]},TestDatabaseType=${Server_Info[9]},TestDatabase=${Server_Info[10]},Client_VM_SKU=${Client_Info[5]}"
-
-#Get test and DB under test type from test config
-TestType=`grep "TestType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
-TestDatabaseType=`grep "TestDatabaseType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
-
-export TestType=`LowerCase $TestType`
-export TestDatabaseType=`LowerCase $TestDatabaseType`

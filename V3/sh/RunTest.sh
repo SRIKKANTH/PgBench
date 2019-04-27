@@ -13,6 +13,9 @@ pkill sed
 pkill psql
 pkill grep
 
+echo "" > $HOME/UpdateResourceHeathToLogsDB.log
+echo "" > $HOME/runLog.log
+
 LogFile=runLog.log
 chmod +x *.sh
 nohup ./pbenchTest.sh > $LogFile 2>&1 &

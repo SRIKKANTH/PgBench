@@ -1,14 +1,15 @@
 import psycopg2
 
-def update_server_info(Test_Server, Test_Server_Region, Test_Server_Environment, Test_Database_Type, vCores, Storage_In_MB, Test_Server_Username, Test_Server_Password, Test_Database_Name="", Server_Last_HeartBeat='1900-01-01 00:00:00'):
+def update_server_info(Test_Server, Test_Server_Region, Test_Server_Environment, Test_Server_Server_Edition, Test_Database_Type, Test_Server_CPU_Cores, Test_Server_Storage_In_MB, Test_Server_Username, Test_Server_Password, Test_Database_Name="", Server_Last_HeartBeat='1900-01-01 00:00:00'):
     PG_Query=f"""INSERT INTO {ServerInfoTableName} ( \
     Test_Server,  \
     Server_Last_HeartBeat,  \
     Test_Server_Region,  \
     Test_Server_Environment,  \
+    Test_Server_Server_Edition, \
     Test_Database_Type,  \
-    vCores,  \
-    Storage_In_MB,  \
+    Test_Server_CPU_Cores,  \
+    Test_Server_Storage_In_MB,  \
     Test_Server_Username,  \
     Test_Server_Password,  \
     Test_Database_Name  \
@@ -17,23 +18,24 @@ def update_server_info(Test_Server, Test_Server_Region, Test_Server_Environment,
         '{Server_Last_HeartBeat}', \
         '{Test_Server_Region}', \
         '{Test_Server_Environment}', \
+        '{Test_Server_Server_Edition}', \
         '{Test_Database_Type}', \
-         {vCores}, \
-         {Storage_In_MB}, \
+         {Test_Server_CPU_Cores}, \
+         {Test_Server_Storage_In_MB}, \
         '{Test_Server_Username}',  \
         '{Test_Server_Password}',  \
         '{Test_Database_Name}'  \
     );"""
-    return (Run_SQL_Query(PG_Query=PG_Query))
+    return (Run_SQL_Query(DbServer=LogsDbServer,DataBase=LogsDataBase,DbServerUsername=LogsDbServerUsername,DbServerPassword=LogsDbServerPassword,PG_Query=PG_Query))
 
-def update_client_info(Client_Hostname, Client_Region, Client_Resource_Group, Client_SKU, Client_Username, Client_Password, Client_FQDN,Client_Last_HeartBeat='1900-01-01 00:00:00', Test_Server_Assigned="None"):
+def update_client_info(Client_Hostname, Client_Region, Client_Resource_Group, Client_VM_SKU, Client_Username, Client_Password, Client_FQDN,Client_Last_HeartBeat='1900-01-01 00:00:00', Test_Server_Assigned="None"):
     PG_Query=f"""INSERT INTO {ClientInfoTableName} ( \
         Client_Hostname,  \
         Client_Last_HeartBeat,  \
         Test_Server_Assigned,  \
         Client_Region,  \
         Client_Resource_Group,  \
-        Client_SKU,  \
+        Client_VM_SKU,  \
         Client_Username,  \
         Client_Password,  \
         Client_FQDN \
@@ -43,7 +45,7 @@ def update_client_info(Client_Hostname, Client_Region, Client_Resource_Group, Cl
         '{Test_Server_Assigned}',  \
         '{Client_Region}',  \
         '{Client_Resource_Group}',  \
-        '{Client_SKU}',  \
+        '{Client_VM_SKU}',  \
         '{Client_Username}',  \
         '{Client_Password}',  \
         '{Client_FQDN}' \
@@ -51,14 +53,14 @@ def update_client_info(Client_Hostname, Client_Region, Client_Resource_Group, Cl
 
     return (Run_SQL_Query(DbServer=LogsDbServer,DataBase=LogsDataBase,DbServerUsername=LogsDbServerUsername,DbServerPassword=LogsDbServerPassword,PG_Query=PG_Query))
 
-#def Run_SQL_Query(DbServer,DataBase,DbServerUsername,DbServerPassword,):
-def Run_SQL_Query(PG_Query,DbServer=LogsDbServer,DataBase=LogsDataBase,DbServerUsername=LogsDbServerUsername,DbServerPassword=LogsDbServerPassword):
+def Run_SQL_Query(DbServer,DataBase,DbServerUsername,DbServerPassword,PG_Query):
     try:
         conn = psycopg2.connect(f"dbname='{DataBase}' user='{DbServerUsername}' host='{DbServer}' password='{DbServerPassword}'")
     except:
         print (f"I am unable to connect to the database:'{DbServer}'")
 
     cur = conn.cursor()
+
     try:
         cur.execute(PG_Query)
         print('Success')

@@ -33,7 +33,7 @@ with open('./Environment.json') as EnvironmentFile:
 
 dateTimeString = str(datetime.datetime.now().strftime("%y%m%d%H%M%S"))
 
-NameTag = "perf-client-"
+NameTag = "perf-client"
 
 # Get VM Name if 
 if VirtualMachineName is None or VirtualMachineName == "":

@@ -8,20 +8,33 @@
 ########################################################################
 
 set +H
-export Duration=7200
 
-export ConnectionsList="
-    1
-    2
-    4
-    8
-    16
-    32
-    48
-    100
-    200
-    "
-export ScaleFactor=2000
+. CommonRoutines.sh
+
+# Set defaults if you cannot get the config from logs db server
+if [ -z "$Duration" ]
+then
+    export Duration=7200
+    echo "Setting Duration to default: '$Duration'" 
+else
+    echo "Starting test with Duration: '$Duration'" 
+fi
+
+if [ ${#ConnectionsList[@]} == 0 ]
+then
+    export ConnectionsList=(1 2 4 8 16 32 48 100 200)
+    echo "Setting ConnectionsList to default: '${ConnectionsList[@]}'" 
+else
+    echo "Starting test with ConnectionsList: '${ConnectionsList[@]}'" 
+fi
+
+if [ -z "$ScaleFactor" ]
+then
+    export ScaleFactor=2000
+    echo "Setting ScaleFactor to default: '$ScaleFactor'" 
+else
+    echo "Starting test with ScaleFactor: '$ScaleFactor'" 
+fi
 
 #
 export COLLECT_SERVER_STATS=0
@@ -349,7 +362,8 @@ pgBenchTest ()
     echo ""
     echo "-------- Initializing db... Done in $((endTime-startTime)) seconds -------- "
 
-    for Connections in $ConnectionsList
+    #for Connections in $ConnectionsList
+    for Connections in ${ConnectionsList[@]}
     do
         Threads=$Connections
         if [ $Threads -gt `nproc` ]
@@ -417,10 +431,9 @@ pgBenchTest ()
                 kill -9 $pid 2>/dev/null 
             done
 
-            mkdir -p Logs/$Connections/$Iteration 
-
             if [ $COLLECT_SERVER_STATS == 1 ]
             then
+                mkdir -p Logs/$Connections/$Iteration
                 scp $Server:/tmp/capture_server* /tmp/
                 scp $Server:/tmp/capture_server* Logs/$Connections/$Iteration/
             fi
@@ -505,13 +518,8 @@ function GetLogFileNameTag()
 ##              Script Execution Starts from here
 ###############################################################
 
-. CommonRoutines.sh
-
-CheckDependencies
 export pgbenchTestDatabase=$TestDatabase
 Current_Test_Iteration=0
-echo "" > $HOME/UpdateResourceHeathToLogsDB.log
-echo "" > $HOME/runLog.log
 
 while [ $Test_Iterations -gt $Current_Test_Iteration ]
 do
@@ -533,19 +541,13 @@ do
     pgBenchTest >> $LogFile 2>&1
     
     echo "------------------------------ Test Finished at: " `GetCurrentDateTimeInSQLFormat` >> $LogFile 
-    
-    cp $LogFile /home/vmuser/
-    chmod 0777 /home/vmuser/LogFile_*
 
-    if [ ParseLogsAfterTest ]
-    then
-        bash pgBenchParser.sh Logs/
-        CsvFile=Logs/CSVs/$filetag.csv
-        DbUploadFile=Logs/CSVs/$filetag.db
-        cat $CsvFile | grep -v ^Iteration > $DbUploadFile
-        sed -i "s/ms//g" $DbUploadFile
-        UploadStatsToLogsDB $DbUploadFile
-    fi
+    bash pgBenchParser.sh Logs/
+    CsvFile=Logs/CSVs/$filetag.csv
+    DbUploadFile=Logs/CSVs/$filetag.db
+    cat $CsvFile | grep -v ^Iteration > $DbUploadFile
+    sed -i "s/ms//g" $DbUploadFile
+    UploadStatsToLogsDB $DbUploadFile
 
     if [ -e $CsvFile ]
     then   
@@ -557,4 +559,3 @@ do
     echo "------------------------------End of Test Iteration: $Current_Test_Iteration at "`date`"------------------------------"
     ((Current_Test_Iteration++))
 done
-

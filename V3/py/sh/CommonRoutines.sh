@@ -2,33 +2,35 @@
 #
 # This common routines for DB benchmark automation.
 #
-# CREATE TABLE Client_info
-# (
-#     Client_Hostname VARCHAR(100) NOT NULL PRIMARY KEY, 
-#     Client_Last_HeartBeat timestamp,
-#     Test_Server_Assigned VARCHAR(100),
-#     Client_Region VARCHAR(25),
-#     Client_Resource_Group VARCHAR(25),
-#     Client_SKU VARCHAR(25),
-#     Client_Username VARCHAR(25),
-#     Client_Password VARCHAR(25),
-#     Client_FQDN VARCHAR(100)
-# );
-# 
-# CREATE TABLE Server_Info
-# (
-#     Test_Server VARCHAR(100) NOT NULL PRIMARY KEY, 
-#     Server_Last_HeartBeat timestamp,
-#     Test_Server_Region VARCHAR(25),
-#     Test_Server_Environment VARCHAR(25),
-#     Test_Database_Type  VARCHAR(25),
-#     vCores INT,
-#     Storage_In_MB INT,
-#     Test_Server_Username VARCHAR(25),
-#     Test_Server_Password VARCHAR(25),
-#     Test_Database_Name VARCHAR(25)
-# );
-# 
+#
+#CREATE TABLE Client_info
+#(
+#    Client_Hostname VARCHAR(100) NOT NULL PRIMARY KEY, 
+#    Client_Last_HeartBeat timestamp,
+#    Test_Server_Assigned VARCHAR(100),
+#    Client_Region VARCHAR(25),
+#    Client_Resource_Group VARCHAR(25),
+#    Client_VM_SKU VARCHAR(25),
+#    Client_Username VARCHAR(25),
+#    Client_Password VARCHAR(25),
+#    Client_FQDN VARCHAR(100)
+#);
+#
+#CREATE TABLE Server_Info
+#(
+#    Test_Server_fqdn VARCHAR(100) NOT NULL PRIMARY KEY, 
+#    Server_Last_HeartBeat timestamp,
+#    Test_Server_Region VARCHAR(25),
+#    Test_Server_Environment VARCHAR(25),
+#    Test_Server_Server_Edition VARCHAR(25),
+#    Test_Server_CPU_Cores INT,
+#    Test_Server_Storage_In_MB INT,
+#    Test_Server_Username VARCHAR(25),
+#    Test_Server_Password VARCHAR(25),
+#    Test_Database_Type  VARCHAR(25),
+#    Test_Database_Name VARCHAR(25)
+#);
+#
 # Author: Srikanth Myakam
 #
 ########################################################################
@@ -203,7 +205,7 @@ else
                 ExecuteQueryOnLogsDB "$sql_cmd"
 
                 # Now get Test Server details from $ServerInfoTableName table
-                Server_Info=($(ExecuteQueryOnLogsDB "select * from $ServerInfoTableName  where Test_Server='$Server'" | grep $Server|sed 's/ //g'|sed 's/|/,/g'|sed 's/,/ /g'))
+                Server_Info=($(ExecuteQueryOnLogsDB "select * from $ServerInfoTableName  where Test_Server_fqdn='$Server'" | grep $Server|sed 's/ //g'|sed 's/|/,/g'|sed 's/,/ /g'))
 
                 if [ -z "$Server_Info" ] 
                 then
@@ -235,5 +237,3 @@ else
         fi
     fi
 fi
-
-

@@ -14,7 +14,7 @@ CREATE TABLE Client_info
 
 CREATE TABLE Server_Info
 (
-    Test_Server VARCHAR(100) NOT NULL PRIMARY KEY, 
+    Test_Server_fqdn VARCHAR(100) NOT NULL PRIMARY KEY, 
     Server_Last_HeartBeat timestamp,
     Test_Server_Region VARCHAR(25),
     Test_Server_Environment VARCHAR(25),
@@ -37,7 +37,7 @@ CREATE TABLE Scheduled_tests
 CREATE TABLE ResourceHealth
 (
     Client_Hostname VARCHAR(100) NOT NULL PRIMARY KEY, 
-    Test_Server VARCHAR(100),
+    Test_Server_fqdn VARCHAR(100),
     Test_Server_Environment VARCHAR(25),
     Test_Server_Region VARCHAR(25),
     Test_Database_Type  VARCHAR(25),

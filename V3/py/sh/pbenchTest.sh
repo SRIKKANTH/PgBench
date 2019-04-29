@@ -36,6 +36,14 @@ else
     echo "Starting test with ScaleFactor: '$ScaleFactor'" 
 fi
 
+if [ -z "$TestDatabase" ]
+then
+    export TestDatabase='postgres'
+    echo "Setting TestDatabase to default: '$TestDatabase'" 
+else
+    echo "Starting test with TestDatabase: '$TestDatabase'" 
+fi
+
 #
 export COLLECT_SERVER_STATS=0
 export CollectViews=0
@@ -264,7 +272,7 @@ get_viewstats()
     for i in $(seq 1 $capture_duration)
     do
         echo  "["`date`"] $viewName Iteration: $i" >> $TCS_RunLog
-        PGPASSWORD=$PassWord psql -h $Server -U $UserName -d postgres -c "select CURRENT_TIMESTAMP, *  $viewName" >> $LogFile
+        PGPASSWORD=$PassWord psql -h $Server -U $UserName -d $TestDatabase -c "select CURRENT_TIMESTAMP, *  $viewName" >> $LogFile
         sleep $views_capture_duration
     done
 }
@@ -290,7 +298,7 @@ run_psql_cmd()
     
     echo "Executing: psql command: $sql_cmd"
     
-    PGPASSWORD=$PassWord psql -h $Server -U $UserName -d postgres -c "$sql_cmd" > $sql_output_file 2>&1
+    PGPASSWORD=$PassWord psql -h $Server -U $UserName -d $TestDatabase -c "$sql_cmd" > $sql_output_file 2>&1
     if [ $? != 0 ]
     then
         exit_script "Failed to execute '$sql_cmd'" $sql_output_file
@@ -344,19 +352,19 @@ pgBenchTest ()
     if [ DropDBonEachRun == 1 ]
     then
         echo "-------- Dropping test db ... -------- `date`"
-        #run_psql_cmd "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = $pgbenchTestDatabase AND pid <> pg_backend_pid();"
-        run_psql_cmd "DROP DATABASE IF EXISTS $pgbenchTestDatabase;"
+        #run_psql_cmd "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = $TestDatabase AND pid <> pg_backend_pid();"
+        run_psql_cmd "DROP DATABASE IF EXISTS $TestDatabase;"
         echo ""
         echo "-------- Creating test db ... -------- `date`"
-        run_psql_cmd "CREATE DATABASE $pgbenchTestDatabase;"
+        run_psql_cmd "CREATE DATABASE $TestDatabase;"
     fi
 
     echo ""
     echo "-------- Initializing db... -------- `date`"
     
-    echo "PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/$pgbenchTestDatabase"
+    echo "PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/$TestDatabase"
     startTime=`date +%s`
-    PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/$pgbenchTestDatabase 2>&1
+    PGPASSWORD=$PassWord pgbench -i -s $ScaleFactor -U $UserName postgres://$Server:5432/$TestDatabase 2>&1
     endTime=`date +%s`
 
     echo ""
@@ -421,9 +429,9 @@ pgBenchTest ()
                 echo "-----------------------------------------------------"
             fi
              
-            echo "Executing: PGPASSWORD=$PassWord pgbench -S -P $pgbench_progress_interval -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/$pgbenchTestDatabase"
+            echo "Executing: PGPASSWORD=$PassWord pgbench -S -P $pgbench_progress_interval -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/$TestDatabase"
             
-            PGPASSWORD=$PassWord pgbench $extra_options -P $pgbench_progress_interval -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/$pgbenchTestDatabase 2>&1
+            PGPASSWORD=$PassWord pgbench $extra_options -P $pgbench_progress_interval -c $Connections -j $Threads -T $Duration -U $UserName postgres://$Server:5432/$TestDatabase 2>&1
             
             echo "Waiting for all procs to exit"
             for pid in ${pids[*]}
@@ -494,7 +502,7 @@ function GetLogFileNameTag()
 
     track_config=""
     for track_option in $track_option_list; do
-        track_config=`PGPASSWORD=$PassWord psql -h $Server -U $UserName -d $pgbenchTestDatabase -c "SHOW ALL;" | grep $track_option | sed "s/| Collects.*//"| sed "s/|/-/"| sed "s/ //g"`_$track_config 
+        track_config=`PGPASSWORD=$PassWord psql -h $Server -U $UserName -d $TestDatabase -c "SHOW ALL;" | grep $track_option | sed "s/| Collects.*//"| sed "s/|/-/"| sed "s/ //g"`_$track_config 
     done
 
     track_config=`echo $track_config | sed s/track_activities/T-ACT/g`
@@ -518,7 +526,6 @@ function GetLogFileNameTag()
 ##              Script Execution Starts from here
 ###############################################################
 
-export pgbenchTestDatabase=$TestDatabase
 Current_Test_Iteration=0
 
 while [ $Test_Iterations -gt $Current_Test_Iteration ]

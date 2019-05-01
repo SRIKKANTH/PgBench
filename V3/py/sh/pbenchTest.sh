@@ -344,6 +344,8 @@ pgBenchTest ()
     echo ""
     echo "Environment: "$Environment
     echo "Region: "$Region
+    echo "TestDatabase: "$TestDatabase
+    echo "TestType: "$TestType
     echo ""
     echo "ServerConfigTrackingParameters:"
     run_psql_cmd "SHOW ALL;" | grep "pg_qs.query_capture_mode\|track_activities\|track_counts\|track_functions\|track_io_timing"

@@ -111,6 +111,12 @@ function CheckDependencies()
         sudo apt install sysstat -y
     fi
 
+    if [[ `which bc` == "" ]]; then
+        echo "INFO: bc: not installed!"
+        echo "INFO: bc: Trying to install!"
+        sudo apt install bc -y
+    fi
+
     if [[ `which pgbench` == "" ]]; then
         echo "INFO: pgbench: not installed!"
         echo "INFO: pgbench: Trying to install!"
@@ -132,7 +138,7 @@ function exit_script()
 
 function ExecuteQueryOnLogsDB()
 {
-    # Warning: Don't keep any echo statments inthis routie as the output of this function used as it is.
+    # Warning: Don't keep any echo statments in this routie as the output of this function used as it is.
     sql_cmd="$@"
     PGPASSWORD=$LogsDbServerPassword psql -h $LogsDbServer -U $LogsDbServerUsername -d $LogsDataBase -c "$sql_cmd" 
 }
@@ -189,6 +195,7 @@ else
             echo "INFO: No test will be executed"
         else
             export Server=${Scheduled_Test_Info[1]}
+            export TestType=${Scheduled_Test_Info[2]}
             if [ -z "$Server" ]
             then
                 echo "INFO: No server assigned for me ('$Client_Hostname') in ScheduledTestsTable:$ScheduledTestsTable"
@@ -223,7 +230,7 @@ else
                     export TestDatabase=${Server_Info[10]}
 
                     #Get test and DB under test type from test config
-                    TestType=`grep "TestType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+                    #TestType=`grep "TestType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
                     TestDatabaseType=`grep "TestDatabaseType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 
                     export TestType=`LowerCase $TestType`

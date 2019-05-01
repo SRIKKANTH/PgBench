@@ -31,6 +31,9 @@ CREATE TABLE Scheduled_tests
 (
     Client_Hostname VARCHAR(100) NOT NULL PRIMARY KEY, 
     Test_Server VARCHAR(100),
+    Test_Type VARCHAR(25),
+    Test_Database_Type VARCHAR(25),
+    Report_Emails VARCHAR(100),
     Test_Parameters_script  VARCHAR(1000) NOT NULL
 );
 
@@ -84,5 +87,7 @@ CREATE TABLE pgbenchperf
     Client_Os_Memory_Stats_Free float,
     Client_Os_Cpu_Usage float,
     PgBench_Cpu_Usage float,
-    PgBench_Mem_Usage float
+    PgBench_Mem_Usage float,
+    Test_Type VARCHAR(25),
+    Test_Database_Name  VARCHAR(25)
 )

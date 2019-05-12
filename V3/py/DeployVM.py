@@ -1,15 +1,9 @@
 import json
 import datetime
 import subprocess
-import logging
-import string
 import os
 import time
-import os.path
-import array
-import linecache
-import sys
-import re
+import db
 import ssh
 
 try:
@@ -17,74 +11,108 @@ try:
 except ImportError:
     import subprocess as commands
 
-# Initialise parameters
-with open('./Environment.json') as EnvironmentFile:  
-    EnvironmentData = json.load(EnvironmentFile)
-    SubscriptionName=EnvironmentData["SubscriptionName"]
-    SubscriptionId=EnvironmentData["SubscriptionId"]
+ConfigurationFile='./Environment.json'
+
+try:
+    # Initialise parameters
+    with open(ConfigurationFile) as EnvironmentFile:  
+        EnvironmentData = json.load(EnvironmentFile)
+        
+        # Get Client Info
+        SubscriptionId=EnvironmentData["ClientDetails"]["SubscriptionId"]
+        Client_Hostname = EnvironmentData["ClientDetails"]["Client_Hostname"]
+        Client_Region = EnvironmentData["ClientDetails"]["Client_Region"]
+        Client_Resource_Group=EnvironmentData["ClientDetails"]["Client_Resource_Group"]
+        Client_VM_SKU = EnvironmentData["ClientDetails"]["Client_VM_SKU"].lower()
+        Client_Username = EnvironmentData["ClientDetails"]["Client_Username"]
+        Client_Password = EnvironmentData["ClientDetails"]["Client_Password"]
+        OSImage = EnvironmentData["ClientDetails"]["OSImage"]
+
+        # Get Server Info
+        Test_Server_fqdn = EnvironmentData["ServerDetails"]["Test_Server_fqdn"]
+        Test_Server_Region = EnvironmentData["ServerDetails"]["Test_Server_Region"]
+        # 'Test_Server_Environment' should be 'Stage' or 'Prod' or 'Orcas' ; Orcas -> Current Azure PG PaaS or Sterling PG
+        Test_Server_Environment = EnvironmentData["ServerDetails"]["Test_Server_Environment"] 
+
+        Test_Server_Server_Edition = EnvironmentData["ServerDetails"]["Test_Server_Server_Edition"]
+        Test_Server_CPU_Cores = EnvironmentData["ServerDetails"]["Test_Server_CPU_Cores"]
+        Test_Server_Storage_In_MB = EnvironmentData["ServerDetails"]["Test_Server_Storage_In_MB"]
+        Test_Server_Username = EnvironmentData["ServerDetails"]["Test_Server_Username"]
+        Test_Server_Password = EnvironmentData["ServerDetails"]["Test_Server_Password"]
+        Test_Database_Type = EnvironmentData["ServerDetails"]["Test_Database_Type"]
+        Test_Database_Name = EnvironmentData["ServerDetails"]["Test_Database_Name"]
+
+        # Get Logs/Results DB Info
+        LogsDbServer = EnvironmentData["LogsDBConfig"]["LogsDbServer"]
+        LogsDbServerUsername = EnvironmentData["LogsDBConfig"]["LogsDbServerUsername"]
+        LogsDbServerPassword = EnvironmentData["LogsDBConfig"]["LogsDbServerPassword"]
+        LogsDataBase = EnvironmentData["LogsDBConfig"]["LogsDataBase"]
+        LogsTableName = EnvironmentData["LogsDBConfig"]["LogsTableName"]
+        ResourceHealthTableName = EnvironmentData["LogsDBConfig"]["ResourceHealthTableName"]
+        ServerInfoTableName = EnvironmentData["LogsDBConfig"]["ServerInfoTableName"]
+        ClientInfoTableName = EnvironmentData["LogsDBConfig"]["ClientInfoTableName"]
+        ScheduledTestsTable = EnvironmentData["LogsDBConfig"]["ScheduledTestsTable"]
+
+        # Get Test Info
+        Test_Parameters_script = EnvironmentData["TestConfig"]["Test_Parameters_script"]
+except IOError:
+    print(f"Cannot find ConfigurationFile({ConfigurationFile}). Please check and re-try!")
+    exit(1)
+
+def ValidateParameters():
+    # Check Test_Server details
+    if Test_Server_fqdn == "" or Test_Server_fqdn == None:
+        print(f"Missing Test_Server_fqdn cannot continue. Please config Test_Server_fqdn \
+            in {ConfigurationFile} and try again")
+        exit(1)
+    else:
+        if Test_Database_Type=='postgres':
+            # Check Test_Server accessibility.
+            result=db.check_connectivity (Test_Server_fqdn, Test_Server_Username, \
+                Test_Server_Password,Test_Database_Name)
+            if not result:
+                print(f"Access to Test_Server_fqdn: {Test_Server_fqdn} **Failed**.\nCheck your setting and re-try. Without this tests cannot be scheduled and executed")
+                exit(1)
+            else:
+                print(f"Access to LogsDbTest_Server_fqdnServer{Test_Server_fqdn}: Success!.\n")
+
+    # Verify regions of both client and server
+    if Test_Server_Region != Client_Region:
+        print(f"Server region ({Test_Server_Region}) is not same as client VM region ({Client_Region}) is this the valid config?")
+        cross_region_test=input("Do you want to continue? [yes/no]: ")
+        if cross_region_test == 'no':
+            RollBack()
+        else: 
+            print(f"This will be a cross region test. The performance will be a lot less than same region tests due to higher network latencies")
+
+    # Check LogsDbServer accessibility.
+    result=db.check_connectivity (LogsDbServer, LogsDbServerUsername, LogsDbServerPassword, LogsDataBase)
+    if not result:
+        print(f"Access to LogsDbServer: {LogsDbServer} **Failed**. \n Check your setting and re-try. \nWithout this tests cannot be scheduled or executed")
+        RollBack()
+    else:
+        print(f"Access to LogsDbServer{LogsDbServer}: Success!.\n")
     
-    # Get Client Info
-    Client_Hostname = EnvironmentData["Client_Hostname"]
-    Client_Region = EnvironmentData["Client_Region"]
-    Client_Resource_Group=EnvironmentData["Client_Resource_Group"]
-    Client_VM_SKU = EnvironmentData["Client_VM_SKU"].lower()
-    Client_Username = EnvironmentData["Client_Username"]
-    Client_Password = EnvironmentData["Client_Password"]
-    OSImage = EnvironmentData["OSImage"]
-
-    # Get Server Info
-    Test_Server_fqdn = EnvironmentData["ServerDetails"]["Test_Server_fqdn"]
-    Test_Server_Region = EnvironmentData["ServerDetails"]["Test_Server_Region"]
-    Test_Server_Environment = EnvironmentData["ServerDetails"]["Test_Server_Environment"] # It should be 'Stage' or 'Prod' or 'Orcas' ; Orcas -> Current Azure PG PaaS or Sterling PG
-    Test_Server_Server_Edition = EnvironmentData["ServerDetails"]["Test_Server_Server_Edition"]
-    Test_Server_CPU_Cores = EnvironmentData["ServerDetails"]["Test_Server_CPU_Cores"]
-    Test_Server_Storage_In_MB = EnvironmentData["ServerDetails"]["Test_Server_Storage_In_MB"]
-    Test_Server_Username = EnvironmentData["ServerDetails"]["Test_Server_Username"]
-    Test_Server_Password = EnvironmentData["ServerDetails"]["Test_Server_Password"]
-    Test_Database_Type = EnvironmentData["ServerDetails"]["Test_Database_Type"]
-    Test_Database_Name = EnvironmentData["ServerDetails"]["Test_Database_Name"]
-
-    # Get Logs/Results DB Info
-    LogsDbServer = EnvironmentData["LogsDBConfig"]["LogsDbServer"]
-    LogsDbServerUsername = EnvironmentData["LogsDBConfig"]["LogsDbServerUsername"]
-    LogsDbServerPassword = EnvironmentData["LogsDBConfig"]["LogsDbServerPassword"]
-    LogsDataBase = EnvironmentData["LogsDBConfig"]["LogsDataBase"]
-    LogsTableName = EnvironmentData["LogsDBConfig"]["LogsTableName"]
-    ResourceHealthTableName = EnvironmentData["LogsDBConfig"]["ResourceHealthTableName"]
-    ServerInfoTableName = EnvironmentData["LogsDBConfig"]["ServerInfoTableName"]
-    ClientInfoTableName = EnvironmentData["LogsDBConfig"]["ClientInfoTableName"]
-    ScheduledTestsTable = EnvironmentData["LogsDBConfig"]["ScheduledTestsTable"]
-
-    # Get Test Info
-    Test_Parameters_script = EnvironmentData["TestConfig"]["Test_Parameters_script"]
-
-
-dateTimeString = str(datetime.datetime.now().strftime("%y%m%d%H%M%S"))
-
-NameTag = "perf-client"
-
-# Get VM Name if 
-if Client_Hostname is None or Client_Hostname == "":
-    Client_Hostname = f"{NameTag}-{dateTimeString}"
-
-if Client_VM_SKU is None or Client_VM_SKU == "":
-    Client_VM_SKU = "Standard_D4s_v3".lower()
-
-if Client_Resource_Group is None or Client_Resource_Group == "":
-    Client_Resource_Group = f"{NameTag}-rg-{dateTimeString}"
-
-if OSImage is None or OSImage == "":
-    OSImage = "UbuntuLTS"
+    # Check if there is server config already exists
+    result=db.check_row_exists(LogsDbServer, LogsDbServerUsername, LogsDbServerPassword, LogsDataBase, ServerInfoTableName, Column="test_server_fqdn", Value=Test_Server_fqdn)
+    if result:
+        print (f"There exists an entry for given server:'{Test_Server_fqdn}' in ServerInfoTableName '{ServerInfoTableName}', which means it might be assigned for other client already.")
+        overwrite=input("Do you want to free the test server and re-assign it the new VM client? [yes/no]: ")
+        if overwrite=='no':
+            RollBack()
+        else: 
+            print(f"Config for given server: '{Test_Server_fqdn}' in ServerInfoTableName will be modifed for new client")
 
 def CreateResourceGroup(Client_Resource_Group, Client_Region):
     print(f"Creating new Client_Resource_Group {Client_Resource_Group} in {Client_Region}")
-    ReturnStatus = subprocess.check_output(f"az group create --name {Client_Resource_Group} --location {Client_Region}", shell=True, encoding='utf8')
+    ReturnStatus = subprocess.check_output(f"az group create --name {Client_Resource_Group} \
+        --location {Client_Region}", shell=True, encoding='utf8')
     ReturnStatusJson = json.loads(ReturnStatus)
     if 'Succeeded' != ReturnStatusJson["properties"]["provisioningState"]:
         print(f"FATAL: Failed")
         exit(-1)
     else:
-        print(f"Success")
+        print(f"Success!.\n")
 
 def RollBack():
     print(f"FATAL: Occured unrecovered failure. Trying to roll back changes and exit.")
@@ -100,110 +128,190 @@ def CreateVirtualMachine(Client_Hostname):
 
     # Create a virtual network.
     print(f"Creating VNET: {VnetName}")
-    ReturnStatus = subprocess.check_output(f"az network vnet create --resource-group {Client_Resource_Group} --location {Client_Region} --name {VnetName} --subnet-name {SubnetName}", shell=True, encoding='utf8')
+    ReturnStatus = subprocess.check_output(f"az network vnet create --resource-group {Client_Resource_Group} \
+        --location {Client_Region} --name {VnetName} --subnet-name {SubnetName}", shell=True, encoding='utf8')
     ReturnStatusJson = json.loads(ReturnStatus)
     if 'Succeeded' != ReturnStatusJson["newVNet"]["subnets"][0]["provisioningState"]:
         print(f"FATAL: Failed to create SubnetName: {SubnetName}")
         RollBack()
     else:
-        print(f"Success")
+        print(f"Success!.\n")
 
     # Create a public IP address.
     print(f"Creating Publlic IP: {PublicIpName}")
-    ReturnStatus = subprocess.check_output(f"az network public-ip create --resource-group {Client_Resource_Group} --location {Client_Region} --name {PublicIpName} --allocation-method dynamic --dns-name {FqdnName}", shell=True, encoding='utf8')
+    ReturnStatus = subprocess.check_output(f"az network public-ip create --resource-group {Client_Resource_Group} \
+         --location {Client_Region} --name {PublicIpName} --allocation-method dynamic --dns-name {FqdnName}", \
+         shell=True, encoding='utf8')
     ReturnStatusJson = json.loads(ReturnStatus)
     if 'Succeeded' != ReturnStatusJson["publicIp"]["provisioningState"]:
         print(f"FATAL: Failed to create PublicIp: {PublicIpName}")
         RollBack()
     else:
-        print(f"Success")
+        print(f"Success!.\n")
 
     # Create a network security group.
     print(f"Creating Network Security Group: {NsgName}")
-    ReturnStatus = subprocess.check_output(f"az network nsg create --resource-group {Client_Resource_Group} --location {Client_Region} --name {NsgName}", shell=True, encoding='utf8')
+    ReturnStatus = subprocess.check_output(f"az network nsg create --resource-group {Client_Resource_Group} \
+        --location {Client_Region} --name {NsgName}", shell=True, encoding='utf8')
     ReturnStatusJson = json.loads(ReturnStatus)
     if 'Succeeded' != ReturnStatusJson["NewNSG"]["provisioningState"]:
         print(f"FATAL: Failed to create NSG: {NsgName}")
         RollBack()
     else:
-        print(f"Success")
+        print(f"Success!.\n")
     
     # Create a virtual network card and associate with public IP address and NSG.
     print(f"Creating NIC: {NicName}")
-    ReturnStatus = subprocess.check_output(f"az network nic create --resource-group {Client_Resource_Group} --location {Client_Region} --name {NicName} --vnet-name {VnetName} --subnet {SubnetName} --network-security-group {NsgName} --public-ip-address {PublicIpName}", shell=True, encoding='utf8')
+    ReturnStatus = subprocess.check_output(f"az network nic create --resource-group {Client_Resource_Group} \
+        --location {Client_Region} --name {NicName} --vnet-name {VnetName} --subnet {SubnetName} \
+        --network-security-group {NsgName} --public-ip-address {PublicIpName}", shell=True, encoding='utf8')
     ReturnStatusJson = json.loads(ReturnStatus)
     if 'Succeeded' != ReturnStatusJson["NewNIC"]["provisioningState"]:
         print(f"FATAL: Failed to create NIC: {NicName}")
         RollBack()
     else:
-        print(f"Success")
+        print(f"Success!.\n")
     
     # Create a new virtual machine.
     print(f"Creating Virtual Machine: {Client_Hostname}")
-    ReturnStatus = subprocess.check_output(f"az vm create --resource-group {Client_Resource_Group} --location {Client_Region} --name {Client_Hostname} --nics {NicName} --image {OSImage} --size {Client_VM_SKU} --admin-username {Client_Hostname} --admin-password {Client_Password}", shell=True, encoding='utf8')
+    ReturnStatus = subprocess.check_output(f"az vm create --resource-group {Client_Resource_Group} \
+        --location {Client_Region} --name {Client_Hostname} --nics {NicName} --image {OSImage} \
+        --size {Client_VM_SKU} --admin-username {Client_Username} --admin-password {Client_Password}", \
+        shell=True, encoding='utf8')
     ReturnStatusJson = json.loads(ReturnStatus)
     if 'VM running' != ReturnStatusJson["powerState"]:
         print(f"FATAL: Failed to create virtual machine: {Client_Hostname}")
         RollBack()
     else:
-        print(f"Success")
+        print(f"Success!.\n")
 
     #Open port 22 to allow SSh traffic to host.
     print(f"Enabling SSH port 22 for VM: {Client_Hostname}")
-    ReturnStatus = subprocess.check_output(f'az network nsg rule create --nsg-name {NsgName} --resource-group {Client_Resource_Group} -n {NsgName}-SSH --direction Inbound --priority 900 --access Allow --source-address-prefixes * --source-port-ranges * --destination-address-prefixes * --destination-port-ranges 22 --protocol tcp', shell=True, encoding='utf8')
+    ReturnStatus = subprocess.check_output(f'az network nsg rule create --nsg-name {NsgName} \
+        --resource-group {Client_Resource_Group} -n {NsgName}-SSH --direction Inbound --priority 900 \
+        --access Allow --source-address-prefixes * --source-port-ranges * --destination-address-prefixes * \
+        --destination-port-ranges 22 --protocol tcp', shell=True, encoding='utf8')
     ReturnStatusJson = json.loads(ReturnStatus)
     if 'Succeeded' != ReturnStatusJson["provisioningState"]:
         print(f"Enabling SSH port 22 for {Client_Hostname} is Failed")
         RollBack()
     else:
-        print(f"Success")
+        print(f"Success!.\n")
     
     # Collect VM details
     VirtualMachineNameDetails={}
     print("Collecting VM details..")
-    VirtualMachineNameDetails["PublicIp"] = subprocess.check_output(f"az vm show -g {Client_Resource_Group} -n {Client_Hostname} --query publicIps -d --out tsv", shell=True, encoding='utf8').strip()
-    VirtualMachineNameDetails["PrivateIp"] = subprocess.check_output(f"az vm show -g {Client_Resource_Group} -n {Client_Hostname} --query publicIps -d --out tsv", shell=True, encoding='utf8').strip()
-    VirtualMachineNameDetails["FqdnName"] = subprocess.check_output(f"az vm show -g {Client_Resource_Group} -n {Client_Hostname} --query fqdns -d --out tsv", shell=True, encoding='utf8').strip()
+    VirtualMachineNameDetails["PublicIp"] = subprocess.check_output(f"az vm show -g {Client_Resource_Group} \
+        -n {Client_Hostname} --query publicIps -d --out tsv", shell=True, encoding='utf8').strip()
+    VirtualMachineNameDetails["PrivateIp"] = subprocess.check_output(f"az vm show -g {Client_Resource_Group} \
+        -n {Client_Hostname} --query publicIps -d --out tsv", shell=True, encoding='utf8').strip()
+    VirtualMachineNameDetails["FqdnName"] = subprocess.check_output(f"az vm show -g {Client_Resource_Group} \
+        -n {Client_Hostname} --query fqdns -d --out tsv", shell=True, encoding='utf8').strip()
     return (VirtualMachineNameDetails)
+
+def SetupClientVM(ClientFqdn,Client_Username,Client_Password):
+    files=["CommonRoutines.sh", "RunTest.sh", "SendHeartBeat.sh", "pbenchTest.sh", "pgBenchParser.sh", \
+        "ConnectionProperties.csv", "pgbenchSetupScript.sh"]
+    
+    CreateConfigFileForClient(EnvironmentData)
+
+    for file in files:
+        ssh.do_sftp(ClientFqdn,Client_Username,Client_Password,srcfilename=f'..\sh\{file}',operation='put')
+
+    ssh.exec_cmd(ClientFqdn,Client_Username,Client_Password,"sudo apt-get update; sudo apt install -y \
+        dos2unix;dos2unix * ;chmod +x *.sh;bash pgbenchSetupScript.sh>pgbenchSetupScript.log")
+
+    ssh.do_sftp(ClientFqdn,Client_Username,Client_Password,srcfilename='pgbenchSetupScript.log',operation='get')
+
+    if 'performance_test_setup_success' not in open('pgbenchSetupScript.log').read():
+        print("Performance test setup Failed")
+        RollBack()
+    else:
+        print("Performance test setup completed")
+
+def CreateConfigFileForClient(EnvironmentData):
+    filep = open("../sh/ConnectionProperties.csv","w")
+    filep.write(f"LogsDbServer,{EnvironmentData['LogsDBConfig']['LogsDbServer']}\n")
+    filep.write(f"LogsDbServerUsername,{EnvironmentData['LogsDBConfig']['LogsDbServerUsername']}\n")
+    filep.write(f"LogsDbServerPassword,{EnvironmentData['LogsDBConfig']['LogsDbServerPassword']}\n")
+    filep.write(f"LogsDataBase,{EnvironmentData['LogsDBConfig']['LogsDataBase']}\n")
+    filep.write(f"LogsTableName,{EnvironmentData['LogsDBConfig']['LogsTableName']}\n")
+    filep.write(f"ResourceHealthTableName,{EnvironmentData['LogsDBConfig']['ResourceHealthTableName']}\n")
+    filep.write(f"ServerInfoTableName,{EnvironmentData['LogsDBConfig']['ServerInfoTableName']}\n")
+    filep.write(f"ClientInfoTableName,{EnvironmentData['LogsDBConfig']['ClientInfoTableName']}\n")
+    filep.write(f"ScheduledTestsTable,{EnvironmentData['LogsDBConfig']['ScheduledTestsTable']}\n")
+    filep.close()
 
 ##-------------------------------------------------------------------
 # Script starts from here
 ##--------------------------------------------------------------------
 
 if __name__ == '__main__':
+    ValidateParameters()
+    ProvisionedResources={}
+    reTryTimes=6
     try:
-        print(f"Setting Azure subscription: '{SubscriptionName}'..")
+        print(f"Setting Azure subscriptionId: '{SubscriptionId}'..")
         ReturnStatus=os.system(f"az account set --subscription {SubscriptionId}")
         if ReturnStatus != 0:
             print(f"Failed to select azure subscription:'{SubscriptionId}'")
+            print(f"Check SubscriptionId in {ConfigurationFile}. If that is the right one re-login \
+                into azure account by executing 'az login'")
             print('Exiting...')
             exit(-1)
         else:
-            print("Success")
+            print("Success!.\n")
 
-        # Checking given Resource Group is exists or not
-        if 'true' not in subprocess.check_output(f"az group exists --name {Client_Resource_Group}", shell=True, encoding='utf8'):
+        dateTimeString = str(datetime.datetime.now().strftime("%y%m%d%H%M%S"))
+
+        NameTag = "perf-client"
+
+        if Client_Resource_Group is None or Client_Resource_Group == "":
+            Client_Resource_Group = f"{NameTag}-rg-{dateTimeString}"
+
+        # Checking given Resource Group exists or not
+        if 'true' not in subprocess.check_output(f"az group exists --name {Client_Resource_Group}", \
+            shell=True, encoding='utf8'):
             CreateResourceGroup(Client_Resource_Group, Client_Region)
         else:
-            print(f"Using existing ResourceGroup '{Client_Resource_Group}' for the creation the of Virtual Machine '{Client_Hostname}'")
+            print(f"Using existing ResourceGroup '{Client_Resource_Group}' for the creation the of test client")
 
-        VirtualMachineNameDetail=CreateVirtualMachine(Client_Hostname)
-        print(Client_Hostname, VirtualMachineNameDetail["FqdnName"], Client_VM_SKU, Client_Region, Client_Resource_Group, VirtualMachineNameDetail["PublicIp"], Client_Hostname, Client_Password)
-        ClientFqdn=VirtualMachineNameDetail["FqdnName"]
-        
-        files=["CommonRoutines.sh", "RunTest.sh", "SendHeartBeat.sh", "pbenchTest.sh", "pgBenchParser.sh","ConnectionProperties.csv", "pgbenchSetupScript.sh"]
-        
-        for file in files:
-            ssh.do_sftp(ClientFqdn,Client_Hostname,Client_Password,srcfilename=f'sh\{file}',operation='put')
+        # Get VM Name if 
+        if Client_Hostname is None or Client_Hostname == "":
+            Client_Hostname = f"{NameTag}-{dateTimeString}"
 
-        ssh.exec_cmd(ClientFqdn,Client_Hostname,Client_Password,"sudo apt-get update; sudo apt install -y  dos2unix;dos2unix *.sh ;chmod +x *.sh;bash pgbenchSetupScript.sh>pgbenchSetupScript.log")
+            if Client_VM_SKU is None or Client_VM_SKU == "":
+                Client_VM_SKU = "Standard_D4s_v3".lower()
 
-        ssh.do_sftp(ClientFqdn,Client_Hostname,Client_Password,srcfilename='pgbenchSetupScript.log',operation='get')
+            if OSImage is None or OSImage == "":
+                OSImage = "UbuntuLTS"
 
-        if 'performance_test_setup_success' in open('pgbenchSetupScript.log').read():
-            print("performance_test_setup_success")
+            VirtualMachineNameDetail=CreateVirtualMachine(Client_Hostname)
+            print(Client_Hostname, VirtualMachineNameDetail["FqdnName"], Client_VM_SKU, Client_Region, \
+                Client_Resource_Group, VirtualMachineNameDetail["PublicIp"], Client_Hostname, Client_Password)
+            ClientFqdn=VirtualMachineNameDetail["FqdnName"]
         else:
-            print("Performance test setup Failed")
+            print("Sorry! Configuration of existing is still not supported!")
+            exit(1)
+        for reTry in range(0, reTryTimes):
+            if ssh.check_connectivity (ClientFqdn,Client_Username,Client_Password):
+                print("Connected")
+                break
+            else:
+                print(f"VM is not accessible at this point. Will re-try after 5 seconds..({reTry})")
+                time.sleep(10)
+        else:
+            print(f"Failed to connect to created vm")
+            RollBack()
+
+        SetupClientVM(ClientFqdn,Client_Username,Client_Password)
+        if db.InsertServerInfoIntoDb(EnvironmentData):
+            if db.InsertClientInfoIntoDb(EnvironmentData, Client_Hostname, ClientFqdn):
+                if db.InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
+                    print("Done configuring tests.")
+        
+        # Generate First Hearbeat instead of waiting for next interval
+        ssh.exec_cmd(ClientFqdn,Client_Username,Client_Password,"bash SendHeartBeat.sh")
 
     except Exception as ErrMsg :
         print("Exception: "+ str(ErrMsg))

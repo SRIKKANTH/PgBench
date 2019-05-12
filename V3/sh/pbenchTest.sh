@@ -487,7 +487,7 @@ function UploadStatsToLogsDB ()
     if [ -f $ToLogsDbFileCsv ]
     then 
         echo "Pushing stats ($ToLogsDbFileCsv) to LogsDB '$LogsDbServer' into table '$LogsTableName'"
-        PGPASSWORD=$LogsDbServerPassword psql -h $LogsDbServer -U $LogsDbServerUsername -d $LogsDataBase -c "\copy $LogsTableName(Test_Start_Time,Test_End_Time,Environment,Region,Test_Server_Edition,Test_Server_CPU_Cores,Test_Server_Storage_In_MB,Client_VM_SKU,Pg_Server,Client_Hostname,Test_Connections,Os_pg_Connections,TPS_Including_Connection_Establishing,Average_Latency,StdDev_Latency,Scaling_Factor,Test_Duration,Cpu_Threads_Used,Total_Transactions,Transaction_Type,Query_Mode,TPS_Excluding_Connection_Establishing,Client_Os_Memory_Stats_Total,Client_Os_Memory_Stats_Used,Client_Os_Memory_Stats_Free,Client_Os_Cpu_Usage,PgBench_Cpu_Usage,PgBench_Mem_Usage) FROM '$ToLogsDbFileCsv' DELIMITER ',' CSV HEADER;" 2>&1
+        PGPASSWORD=$LogsDbServerPassword psql -h $LogsDbServer -U $LogsDbServerUsername -d $LogsDataBase -c "\copy $LogsTableName(Test_Start_Time,Test_End_Time,Environment,Region,Test_Server_Edition,Test_Server_CPU_Cores,Test_Server_Storage_In_MB,Client_VM_SKU,Pg_Server,Client_Hostname,Test_Connections,Os_pg_Connections,TPS_Including_Connection_Establishing,Average_Latency,StdDev_Latency,Scaling_Factor,Test_Duration,Cpu_Threads_Used,Total_Transactions,Transaction_Type,Query_Mode,TPS_Excluding_Connection_Establishing,Client_Os_Memory_Stats_Total,Client_Os_Memory_Stats_Used,Client_Os_Memory_Stats_Free,Client_Os_Cpu_Usage,PgBench_Cpu_Usage,PgBench_Mem_Usage,Test_type,Test_database_name) FROM '$ToLogsDbFileCsv' DELIMITER ',' CSV HEADER;" 2>&1
     else
         echo "Cannot upload test results to db as file:'$ToLogsDbFileCsv' cannot exist"
     fi

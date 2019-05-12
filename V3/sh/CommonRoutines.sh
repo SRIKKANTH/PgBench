@@ -170,6 +170,7 @@ export ScaleFactor=""
 
 # Get test config assigned for this server from logs db server
 rm -rf $HOME/test_config.sh > /dev/null 2>&1 
+# Get test_parameters_script column from $ScheduledTestsTable for this client $Client_Hostname
 ExecuteQueryOnLogsDB "select test_parameters_script from $ScheduledTestsTable WHERE Client_Hostname='$Client_Hostname';" | sed 's/+//'| sed 's/^ //'| grep -v "^[-(]"| sed s/test_parameters_script// > $HOME/test_config.sh
 
 if [ `wc $HOME/test_config.sh | awk '{print $2}'` == 0 ]

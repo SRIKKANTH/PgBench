@@ -310,10 +310,11 @@ if __name__ == '__main__':
                 if db.InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
                     print("Done configuring tests.")
         
-        # Generate First Hearbeat instead of waiting for next interval
-        ssh.exec_cmd(ClientFqdn,Client_Username,Client_Password,"bash SendHeartBeat.sh")
         # Start the test now instead of waiting for next trigger interval
         ssh.exec_cmd(ClientFqdn,Client_Username,Client_Password,"bash RunTest.sh")
+
+        # Generate First Hearbeat instead of waiting for next interval
+        ssh.exec_cmd(ClientFqdn,Client_Username,Client_Password,"sleep 30; bash SendHeartBeat.sh")
 
     except Exception as ErrMsg :
         print("Exception: "+ str(ErrMsg))

@@ -391,10 +391,6 @@ pgBenchTest ()
             echo "Clients: "$Connections
             echo "Threads: "$Threads
 
-            echo "Sleeping for 15 secs.."
-            sleep 15
-            echo "Sleeping for 15 secs..Done!"
-
             echo > $capture_cpu_SystemFile
             echo > $capture_cpu_PgBenchFile
             echo > $capture_connectionsFile

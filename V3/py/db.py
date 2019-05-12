@@ -82,10 +82,10 @@ def InsertServerInfoIntoDb (EnvironmentData):
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
         PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
-        print("Success")
+        print("Success!.\n")
         return(True)
     else:
-        print("Failed")
+        print("Failed!.\n")
         return(False)
 
 def InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
@@ -100,19 +100,15 @@ def InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
         Value=EnvironmentData['ServerDetails']['Test_Server_fqdn'])
     if result:
         print(f"There is already a row exists for '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}' in '{EnvironmentData['LogsDBConfig']['ScheduledTestsTable']}' table")
-        overwrite=input("Do you want to overwrite it? [yes/no]: ")
-        if overwrite=='no':
-            RollBack()
-        else: 
-            print(f"Deleting existing Config for given server: '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}' in {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']}")
-            PgQuery=f"DELETE FROM {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} where test_server='{EnvironmentData['ServerDetails']['Test_Server_fqdn']}'"
-            if run_pg_query (EnvironmentData['LogsDBConfig']['LogsDbServer'], \
-                EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
-                EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
-                PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
-                print("Success")
-            else:
-                print("Failed")
+        print(f"Deleting existing Config for given server: '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}' in {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']}")
+        PgQuery=f"DELETE FROM {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} where test_server='{EnvironmentData['ServerDetails']['Test_Server_fqdn']}'"
+        if run_pg_query (EnvironmentData['LogsDBConfig']['LogsDbServer'], \
+            EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
+            EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
+            PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
+            print("Success!.\n")
+        else:
+            print("Failed!.\n")
 
     # Fixing 'ClientInfoTableName' table. Free current test server from other clients
     print(f"Fixing '{EnvironmentData['LogsDBConfig']['ClientInfoTableName']}' table. Free the current test server from other clients")
@@ -121,9 +117,9 @@ def InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
         PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
-        print("Success")
+        print("Success!.\n")
     else:
-        print("Failed")
+        print("Failed!.\n")
 
     # Check if there is a test config already exists for 'Client_Hostname'
     result=check_row_exists(EnvironmentData['LogsDBConfig']['LogsDbServer'], \
@@ -163,10 +159,10 @@ def InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
         PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
-        print("Success")
+        print("Success!.\n")
         return(True)
     else:
-        print("Failed")
+        print("Failed!.\n")
 
 def InsertClientInfoIntoDb (EnvironmentData, Client_Hostname, ClientFqdn):
     print(f"Trying to InsertClientInfoIntoDb")
@@ -179,11 +175,7 @@ def InsertClientInfoIntoDb (EnvironmentData, Client_Hostname, ClientFqdn):
         Value=Client_Hostname)
     if result:
         print(f"There is already a row exists for '{Client_Hostname}' in 'ClientInfoTableName' table")
-        overwrite=input("Do you want to overwrite it? [yes/no]: ")
-        if overwrite=='no':
-            RollBack()
-        else: 
-            print(f"Config for given Client: '{Client_Hostname}' in {EnvironmentData['LogsDBConfig']['ClientInfoTableName']} will be modifed for new client")
+        print(f"Config for given Client: '{Client_Hostname}' in {EnvironmentData['LogsDBConfig']['ClientInfoTableName']} will be modifed for new client")
 
         PgQuery=f"UPDATE {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} set \
         Test_Server_Assigned='{EnvironmentData['ServerDetails']['Test_Server_fqdn']}', \
@@ -214,10 +206,10 @@ def InsertClientInfoIntoDb (EnvironmentData, Client_Hostname, ClientFqdn):
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
         PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
-        print("Success")
+        print("Success!.\n")
         return(True)
     else:
-        print("Failed")
+        print("Failed!.\n")
         return(False)
 
 def run_pg_query(PgServer, PgServerUsername, PgServerPassword, PgQuery, PgDatabase='postgres'):
@@ -235,8 +227,7 @@ def run_pg_query(PgServer, PgServerUsername, PgServerPassword, PgQuery, PgDataba
 
         # Try to connect
         try:
-            #print(f"Executing query:{PgQuery} on host='{PgServer}' dbname='{PgDatabase}' \
-            #   user='{PgServerUsername}' password='{PgServerPassword}'")
+            #print(f"Executing query:{PgQuery} on host='{PgServer}' dbname='{PgDatabase}' user='{PgServerUsername}' password='{PgServerPassword}'")
 
             conn=psycopg2.connect(f"host='{PgServer}' dbname='{PgDatabase}' \
                 user='{PgServerUsername}' password='{PgServerPassword}'")

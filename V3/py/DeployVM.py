@@ -295,7 +295,7 @@ if __name__ == '__main__':
             exit(1)
         for reTry in range(0, reTryTimes):
             if ssh.check_connectivity (ClientFqdn,Client_Username,Client_Password):
-                print("Connected")
+                print("Connected!\n")
                 break
             else:
                 print(f"VM is not accessible at this point. Will re-try after 5 seconds..({reTry})")
@@ -312,6 +312,8 @@ if __name__ == '__main__':
         
         # Generate First Hearbeat instead of waiting for next interval
         ssh.exec_cmd(ClientFqdn,Client_Username,Client_Password,"bash SendHeartBeat.sh")
+        # Start the test now instead of waiting for next trigger interval
+        ssh.exec_cmd(ClientFqdn,Client_Username,Client_Password,"bash RunTest.sh")
 
     except Exception as ErrMsg :
         print("Exception: "+ str(ErrMsg))

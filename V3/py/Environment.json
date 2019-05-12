@@ -1,43 +1,42 @@
 {
-    "SubscriptionName":"",
-    "SubscriptionId":"",
-    "Client_Resource_Group":"",
-    "Client_Region":"eastus",
-    "Client_VM_SKU":"Standard_D4s_v3",
-    "Client_Username":"",
-    "Client_Password":"!@#",
-    "Client_Hostname":"",
-    "OSImage":"",
+    "ClientDetails":{
+        "SubscriptionId":"7fec0000-0078-4000-0004-500006000006",
+        "Client_Resource_Group":"srm-pg-test-2",
+        "Client_Region":"southeastasia",
+        "Client_VM_SKU":"Standard_D4s_v3",
+        "Client_Username":"cloudUsername",
+        "Client_Password":"password",
+        "// -- Comment for 'Client_Hostname'":"Use this field only if you want to update a testconfig or use existing client VM. Leave empty for creating new VM",
+        "Client_Hostname":"",
+        "OSImage":""
+    },
     "ServerDetails":{
-        "Test_Server_fqdn":"",
-        "Test_Server_Username":"",
-        "Test_Server_Password":"!@#",
-        "Test_Server_Region":"",
-        "Test_Server_Environment":"",
-        "Test_Server_Server_Edition":"",
+        "Test_Server_fqdn":"zzzxxxcc-test.postgres.database.azure.com",
+        "Test_Server_Username":"Username",
+        "Test_Server_Password":"SuperSecret",
+        "Test_Server_Region":"eastus",
+        "Test_Server_Environment":"Stage",
+        "Test_Server_Server_Edition":"GeneralPurpose",
         "Test_Server_CPU_Cores":4,
         "Test_Server_Storage_In_MB":1048576,
         "Test_Database_Type":"postgres",
-        "Test_Database_Name":"postgres",
-        "Report_Emails":""
+        "Test_Database_Name":"postgres"
     },
     "TestConfig":{
+        "Report_Emails":"srm@contoso.com",
         "Test_Type":"pgbench",
         "Test_Parameters_script":"export Duration=7200;export ConnectionsList=(1 2 4 8 16 32 48 100 200);export ScaleFactor=2000;"
     },
     "LogsDBConfig":{
         "Comment":"These are system specific do not change these unless you know what you are exactly doing",
-        "ReportEmail":"",
-        "LogsDbServer":"",
-        "LogsDbServerUsername":"c",
-        "LogsDbServerPassword":"!@#",
+        "LogsDbServer":"longhaulperfdb",
+        "LogsDbServerUsername":"cloudUserName",
+        "LogsDbServerPassword":"Password",
         "LogsDataBase":"testdb",
         "LogsTableName":"pgbenchperf",
         "ResourceHealthTableName":"ResourceHealth",
         "ServerInfoTableName":"Server_Info",
         "ClientInfoTableName":"Client_info",
-        "ScheduledTestsTable":"Scheduled_tests",
-        "TestType":"pgbench",
-        "TestDatabaseType":"postgres"
+        "ScheduledTestsTable":"Scheduled_tests"
     }
 }

@@ -187,7 +187,7 @@ else
         echo "FATAL: Cannot run any tests"
     else
         export Client_VM_SKU=${Client_Info[5]}
-
+        
         Scheduled_Test_Info=($(ExecuteQueryOnLogsDB "select * from $ScheduledTestsTable  where client_hostname='$Client_Hostname'" | grep $Client_Hostname|sed 's/ //g'|sed 's/|/,/g'|sed 's/,/ /g'))
 
         if [ -z "$Scheduled_Test_Info" ]
@@ -232,7 +232,7 @@ else
 
                     #Get test and DB under test type from test config
                     #TestType=`grep "TestType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
-                    TestDatabaseType=`grep "TestDatabaseType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
+                    #TestDatabaseType=`grep "TestDatabaseType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`
 
                     export TestType=`LowerCase $TestType`
                     export TestDatabaseType=`LowerCase $TestDatabaseType`

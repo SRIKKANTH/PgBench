@@ -1,4 +1,5 @@
 import os
+import json
 import socket
 import sys
 import traceback
@@ -20,7 +21,8 @@ def exec_cmd (hostname,username,password,command,port=22):
         outlines=stdout.readlines()
         response=''.join(outlines)
     except Exception as e:
-        traceback.print_exc()
+        pass
+        #traceback.print_exc()
         try:
             client.close()
         except:
@@ -61,21 +63,30 @@ def do_sftp (hostname,username,password,srcfilename,dstfilename=None,operation='
 
     return True
 
-if __name__ == '__main__':
-    ClientFqdn = ''
-    Username = ''
-    Password = '!@#'
-    
-    files=["CommonRoutines.sh", "RunTest.sh", "SendHeartBeat.sh", "pbenchTest.sh", "pgBenchParser.sh","ConnectionProperties.csv", "pgbenchSetupScript.sh"]
-    
-    for file in files:
-        do_sftp(ClientFqdn,Username,Password,srcfilename=f'sh\{file}',operation='put')
-
-    exec_cmd(ClientFqdn,Username,Password,"sudo apt-get update; sudo apt install -y  dos2unix;dos2unix *.sh ;chmod +x *.sh;bash pgbenchSetupScript.sh>pgbenchSetupScript.log")
-
-    do_sftp(ClientFqdn,Username,Password,srcfilename='pgbenchSetupScript.log',operation='get')
-
-    if 'performance_test_setup_success' in open('pgbenchSetupScript.log').read():
-        print("performance_test_setup_success")
+def check_connectivity (hostname,username,password,port=22):
+    responce = exec_cmd (hostname,username,password,'uname -a',port=22)
+    if 'Linux' in responce:
+        return(True)
     else:
-        print("Not found")
+        return(False)
+
+if __name__ == '__main__':
+    ConfigurationFile='./Environment.json'
+
+    # Initialise parameters
+    with open(ConfigurationFile) as EnvironmentFile:  
+        EnvironmentData = json.load(EnvironmentFile)
+
+        # Get Client Info
+        SubscriptionId=EnvironmentData["ClientDetails"]["SubscriptionId"]
+        Client_Hostname = EnvironmentData["ClientDetails"]["Client_Hostname"]
+        Client_Region = EnvironmentData["ClientDetails"]["Client_Region"]
+        Client_Resource_Group=EnvironmentData["ClientDetails"]["Client_Resource_Group"]
+        Client_VM_SKU = EnvironmentData["ClientDetails"]["Client_VM_SKU"].lower()
+        Client_Username = EnvironmentData["ClientDetails"]["Client_Username"]
+        Client_Password = EnvironmentData["ClientDetails"]["Client_Password"]
+        OSImage = EnvironmentData["ClientDetails"]["OSImage"]
+
+    print(f"{Client_Username},{Client_Password}:")
+
+    

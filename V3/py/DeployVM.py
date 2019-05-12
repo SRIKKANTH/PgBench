@@ -71,7 +71,7 @@ def ValidateParameters():
             result=db.check_connectivity (Test_Server_fqdn, Test_Server_Username, \
                 Test_Server_Password,Test_Database_Name)
             if not result:
-                print(f"Access to Test_Server_fqdn: {Test_Server_fqdn} **Failed**.\nCheck your setting and re-try. Without this tests cannot be scheduled and executed")
+                print(f"Access to Test_Server_fqdn: {Test_Server_fqdn} **Failed**.\nCheck your settings and re-try. Without this tests cannot be scheduled and executed")
                 exit(1)
             else:
                 print(f"Access to LogsDbTest_Server_fqdnServer{Test_Server_fqdn}: Success!.\n")
@@ -97,7 +97,7 @@ def ValidateParameters():
     result=db.check_row_exists(LogsDbServer, LogsDbServerUsername, LogsDbServerPassword, LogsDataBase, ServerInfoTableName, Column="test_server_fqdn", Value=Test_Server_fqdn)
     if result:
         print (f"There exists an entry for given server:'{Test_Server_fqdn}' in ServerInfoTableName '{ServerInfoTableName}', which means it might be assigned for other client already.")
-        overwrite=input("Do you want to free the test server and re-assign it the new VM client? [yes/no]: ")
+        overwrite=input("Do you want to free the test server and assign it to the new VM client? [yes/no]: ")
         if overwrite=='no':
             RollBack()
         else: 

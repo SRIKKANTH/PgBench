@@ -134,11 +134,7 @@ def InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
         Value=Client_Hostname)
     if result:
         print(f"There is already a row exists for '{Client_Hostname}' in 'ScheduledTestsTable' table")
-        overwrite=input("Do you want to overwrite it? [yes/no]: ")
-        if overwrite=='no':
-            RollBack()
-        else: 
-            print(f"Config for given Client: '{Client_Hostname}' in {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} will be modifed with new details")
+        print(f"Config for given Client: '{Client_Hostname}' in {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} will be modifed with new details")
 
         PgQuery=f"UPDATE {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} set \
         Test_Server='{EnvironmentData['ServerDetails']['Test_Server_fqdn']}', \

@@ -41,6 +41,7 @@ try:
         Test_Server_Password = EnvironmentData["ServerDetails"]["Test_Server_Password"]
         Test_Database_Type = EnvironmentData["ServerDetails"]["Test_Database_Type"]
         Test_Database_Name = EnvironmentData["ServerDetails"]["Test_Database_Name"]
+        Test_Database_Topology = EnvironmentData["ServerDetails"]["Test_Database_Topology"]
 
         # Get Logs/Results DB Info
         LogsDbServer = EnvironmentData["LogsDBConfig"]["LogsDbServer"]
@@ -62,7 +63,7 @@ except IOError:
 def ValidateParameters():
     # Check Test_Server details
     if Test_Server_fqdn == "" or Test_Server_fqdn == None:
-        print(f"Missing Test_Server_fqdn cannot continue. Please config Test_Server_fqdn \
+        print(f"Missing 'Test_Server_fqdn' cannot continue. Please config 'Test_Server_fqdn' \
             in {ConfigurationFile} and try again")
         exit(1)
     else:
@@ -74,7 +75,7 @@ def ValidateParameters():
                 print(f"Access to Test_Server_fqdn: {Test_Server_fqdn} **Failed**.\nCheck your settings and re-try. Without this tests cannot be scheduled and executed")
                 exit(1)
             else:
-                print(f"Access to LogsDbTest_Server_fqdnServer{Test_Server_fqdn}: Success!.\n")
+                print(f"Access to LogsDbTest_Server_fqdnServer: {Test_Server_fqdn}: Success!.\n")
 
     # Verify regions of both client and server
     if Test_Server_Region != Client_Region:
@@ -91,12 +92,12 @@ def ValidateParameters():
         print(f"Access to LogsDbServer: {LogsDbServer} **Failed**. \n Check your setting and re-try. \nWithout this tests cannot be scheduled or executed")
         RollBack()
     else:
-        print(f"Access to LogsDbServer{LogsDbServer}: Success!.\n")
+        print(f"Access to LogsDbServer: {LogsDbServer}: Success!.\n")
     
     # Check if there is server config already exists
     result=db.check_row_exists(LogsDbServer, LogsDbServerUsername, LogsDbServerPassword, LogsDataBase, ServerInfoTableName, Column="test_server_fqdn", Value=Test_Server_fqdn)
     if result:
-        print (f"There exists an entry for given server:'{Test_Server_fqdn}' in ServerInfoTableName '{ServerInfoTableName}', which means it might be assigned for other client already.")
+        print (f"There exists an entry for given server: '{Test_Server_fqdn}' in ServerInfoTableName '{ServerInfoTableName}'.\n Which means it might be assigned for other client already.")
         overwrite=input("Do you want to free the test server and assign it to the new VM client? [yes/no]: ")
         if overwrite=='no':
             RollBack()

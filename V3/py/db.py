@@ -29,6 +29,7 @@ CREATE TABLE Server_Info
     Test_Server_Username VARCHAR(25),
     Test_Server_Password VARCHAR(25),
     Test_Database_Type  VARCHAR(25),
+    Test_Database_Topology  VARCHAR(25),
     Test_Database_Name VARCHAR(25)
 );
 
@@ -64,6 +65,7 @@ def InsertServerInfoIntoDb (EnvironmentData):
         Test_Server_Username, \
         Test_Server_Password, \
         Test_Database_Type, \
+        Test_Database_Topology, \
         Test_Database_Name \
         ) VALUES ( \
         '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}', \
@@ -76,6 +78,7 @@ def InsertServerInfoIntoDb (EnvironmentData):
         '{EnvironmentData['ServerDetails']['Test_Server_Username']}', \
         '{EnvironmentData['ServerDetails']['Test_Server_Password']}', \
         '{EnvironmentData['ServerDetails']['Test_Database_Type']}', \
+        '{EnvironmentData['ServerDetails']['Test_Database_Topology']}', \
         '{EnvironmentData['ServerDetails']['Test_Database_Name']}' );"""
 
     if run_pg_query ( EnvironmentData['LogsDBConfig']['LogsDbServer'], \

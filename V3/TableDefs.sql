@@ -19,12 +19,13 @@ CREATE TABLE Server_Info
     Test_Server_Region VARCHAR(25),
     Test_Server_Environment VARCHAR(25),
     Test_Server_Server_Edition VARCHAR(25),
-    Test_Server_CPU_Cores INT,
-    Test_Server_Storage_In_MB INT,
+    Test_Server_CPU_Cores INT, -- Datab
+    Test_Server_Storage_In_MB INT, -- Database size in MB
     Test_Server_Username VARCHAR(25),
     Test_Server_Password VARCHAR(25),
-    Test_Database_Type  VARCHAR(25),
-    Test_Database_Name VARCHAR(25)
+    Test_Database_Type  VARCHAR(25), -- This is db engine name. Possible values 'postgres'
+    Test_Database_Name VARCHAR(25), -- Name of database under test. Possible values 'citus', 'postgres'
+    Test_Database_Topology VARCHAR(25) -- possible values 'citus', 'stand_alone_postgres', 
 );
 
 CREATE TABLE Scheduled_tests
@@ -57,7 +58,7 @@ CREATE TABLE ResourceHealth
     Client_Last_Reboot VARCHAR(50)
 );
 
-CREATE TABLE pgbenchperf
+CREATE TABLE pgbenchperf_v2
 (
     Iteration SERIAL PRIMARY KEY, 
     Test_Start_Time timestamp,
@@ -67,6 +68,9 @@ CREATE TABLE pgbenchperf
     Test_Server_Edition VARCHAR(25),
     Test_Server_CPU_Cores INT,
     Test_Server_Storage_In_MB INT,
+    Test_Type VARCHAR(25),
+    Test_Database_Name  VARCHAR(25),
+    Test_Database_Topology VARCHAR(25),
     Client_VM_SKU VARCHAR(25),
     Pg_Server VARCHAR(100),
     Client_Hostname VARCHAR(100),
@@ -87,7 +91,5 @@ CREATE TABLE pgbenchperf
     Client_Os_Memory_Stats_Free float,
     Client_Os_Cpu_Usage float,
     PgBench_Cpu_Usage float,
-    PgBench_Mem_Usage float,
-    Test_Type VARCHAR(25),
-    Test_Database_Name  VARCHAR(25)
+    PgBench_Mem_Usage float
 )

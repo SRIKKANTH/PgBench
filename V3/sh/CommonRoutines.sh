@@ -229,6 +229,7 @@ else
                     export PassWord=${Server_Info[8]}
                     export TestDatabaseType=${Server_Info[9]}
                     export TestDatabase=${Server_Info[10]}
+                    export TestDatabaseTopology=${Server_Info[11]}
 
                     #Get test and DB under test type from test config
                     #TestType=`grep "TestType\b" $TestDataFile | sed "s/,/ /g"| awk '{print $2}'`

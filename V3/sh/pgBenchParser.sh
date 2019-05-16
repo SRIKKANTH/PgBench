@@ -180,14 +180,12 @@ function Parse
     Region=`grep "Region" $log_file_name| awk '{print $2}'`
     PgTestType=`grep "TestType: " $log_file_name | awk '{print $2}'`
     PgTestDatabase=`grep "TestDatabase: " $log_file_name | awk '{print $2}'`
+    TestDatabaseTopology=`grep "TestDatabaseTopology: " $log_file_name | awk '{print $2}'`
 
     res_OsMemoryStats=(`grep "^Memory stats OS" $log_file_name | sed "s/^.*:  //"`)
     res_OsCpuUsage=(`grep "^CPU usage (OS)" $log_file_name | sed "s/^.*:  //"`)
     res_PgBenchClientConnections=(`grep "^Connections" $log_file_name | sed "s/^.*:  //"`)
     res_PgBenchCpuMemUtilization=(`grep "^CPU,MEM usage (pgbench)" $log_file_name | sed "s/^.*:  //"`)
-
-    # res_PgBenchTestStartTime=(`grep "Starting the test iteration" $log_file_name | sed "s/^.*- //"`)
-    # res_PgBenchTestEndTime=(`grep "End of the test iteration" $log_file_name | sed "s/^.*- //"`)
 
     PgBenchTestStartTime=`grep "Test Started at:" $log_file_name | awk '{print $5,$6}'`
     PgBenchTestEndTime=`grep "Test Finished at:" $log_file_name | awk '{print $5,$6}'`
@@ -215,7 +213,7 @@ function Parse
 
         echo "Iteration,TestStartTime,TestEndTime,Environment,Region,PgServer,Client,ScalingFactor,Clients,Threads,TotalTransaction,AvgLatency,StdDevLatency,TPSIncConnEstablishing,TPSExcludingConnEstablishing,TransactionType,QueryMode,Duration,ClientOsMemoryStatsTotal,ClientOsMemoryStatsUsed,ClientOsMemoryStatsFree,ClientOsCpuUsage,PgBenchClientConnections,PgBenchCpuUsage,PgBenchMemUsage,PgServer,Network_rx_ServerAvg,Network_tx_ServerAvg,PgConnections_ServerAvg,OsCpuUsage_Server,OsMemoryStats_Server-Total,Used,Free,sdcIOPSAvg,sdcMbpsReadAvg,sdcMbpsWriteAvg,sdcIOPSMin,sdcIOPSMax,sdcReadMBpsMin,sdcReadMBpsMax,sdcWriteMBpsMin,sdcWriteMBpsMax,sddIOPSAvg,sddMbpsReadAvg,sddMbpsWriteAvg,sddIOPSMin,sddIOPSMax,sddReadMBpsMin,sddReadMBpsMax,sddWriteMBpsMin,sddWriteMBpsMax"  > $csv_file
     else
-        echo "Test_Start_Time, Test_End_Time,Environment, Region,Test_Server_Edition,Test_Server_CPU_Cores,Test_Server_Storage_In_MB,Client_VM_SKU, Pg_Server, Client_Hostname, Test_Connections, Os_pg_Connections, TPS_Including_Connection_Establishing, Average_Latency, StdDev_Latency, Scaling_Factor, Test_Duration, Cpu_Threads_Used, Total_Transactions, Transaction_Type, Query_Mode, TPS_Excluding_Connection_Establishing, Client_Os_Memory_Stats_Total, Client_Os_Memory_Stats_Used, Client_Os_Memory_Stats_Free, Client_Os_Cpu_Usage, PgBench_Cpu_Usage, PgBench_Mem_Usage, TestType, TestDatabase" > $csv_file
+        echo "Test_Start_Time, Test_End_Time,Environment, Region,Test_Server_Edition,Test_Server_CPU_Cores,Test_Server_Storage_In_MB,Client_VM_SKU, Pg_Server, Client_Hostname, Test_Connections, Os_pg_Connections, TPS_Including_Connection_Establishing, Average_Latency, StdDev_Latency, Scaling_Factor, Test_Duration, Cpu_Threads_Used, Total_Transactions, Transaction_Type, Query_Mode, TPS_Excluding_Connection_Establishing, Client_Os_Memory_Stats_Total, Client_Os_Memory_Stats_Used, Client_Os_Memory_Stats_Free, Client_Os_Cpu_Usage, PgBench_Cpu_Usage, PgBench_Mem_Usage, TestType, TestDatabase,TestDatabaseTopology" > $csv_file
     fi
  
     trackOptions=`grep "track_" $log_file_name| sed "s/| Collects.*//"| sed "s/|/-/"| sed "s/ //g"| sed ':a;N;$!ba;s/\n/,/g'| sed 's/-/,/g'`
@@ -229,7 +227,8 @@ function Parse
         then
             echo "${PgBenchTestStartTime},${PgBenchTestEndTime},${Environment},${Region},${res_PgServer[$count]},${Client},${res_ScalingFactor[count]},${TestConnections[count]},${res_Threads[count]},${res_TotalTransaction[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_TPSIncConnEstablishing[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_Duration[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchClientConnections[$count]},${res_PgBenchCpuMemUtilization[$count]},${res_Network_rx_Server[$count]},${res_Network_tx_Server[$count]},${res_PgConnections_Server[$count]},${res_OsCpuUsage_Server[$count]},${res_OsMemoryStats_Server[$count]},${res_ServerDiskAverage_sdc_Server[$count]},${res_ServerDiskMinMaxIOPS_sdc_Server[$count]},${res_ServerDiskMinMaxReadMBps_sdc_Server[$count]},${res_ServerDiskMinMaxWriteMBps_sdc_Server[$count]},${res_ServerDiskAverage_sdd_Server[$count]},${res_ServerDiskMinMaxIOPS_sdd_Server[$count]},${res_ServerDiskMinMaxReadMBps_sdd_Server[$count]},${res_ServerDiskMinMaxWriteMBps_sdd_Server[$count]},$trackOptions"  >> $csv_file
         else
-            echo "${PgBenchTestStartTime},${PgBenchTestEndTime},${Environment},${Region},${Test_Server_Edition},${Test_Server_CPU_Cores},${Test_Server_Storage_In_MB},${Client_VM_SKU},${res_PgServer[$count]},${ClientHostName},${TestConnections[count]},${res_PgBenchClientConnections[$count]},${res_TPSIncConnEstablishing[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_ScalingFactor[count]},${res_Duration[$count]},${res_Threads[count]},${res_TotalTransaction[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchCpuMemUtilization[$count]},${PgTestType},${PgTestDatabase}" >> $csv_file
+            echo "${PgBenchTestStartTime},${PgBenchTestEndTime},${Environment},${Region},${Test_Server_Edition},${Test_Server_CPU_Cores},${Test_Server_Storage_In_MB},${Client_VM_SKU},${res_PgServer[$count]},${ClientHostName},${TestConnections[count]},${res_PgBenchClientConnections[$count]},${res_TPSIncConnEstablishing[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_ScalingFactor[count]},${res_Duration[$count]},${res_Threads[count]},${res_TotalTransaction[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchCpuMemUtilization[$count]},${PgTestType},${PgTestDatabase},${TestDatabaseTopology" >> $csv_file
+            echo "${PgBenchTestStartTime},${PgBenchTestEndTime},${Environment},${Region},${Test_Server_Edition},${Test_Server_CPU_Cores},${Test_Server_Storage_In_MB},${Client_VM_SKU},${res_PgServer[$count]},${ClientHostName},${TestConnections[count]},${res_PgBenchClientConnections[$count]},${res_TPSIncConnEstablishing[$count]},${res_AvgLatency[$count]},${res_StdDevLatency[$count]},${res_ScalingFactor[count]},${res_Duration[$count]},${res_Threads[count]},${res_TotalTransaction[$count]},${res_TransactionType[$count]},${res_QueryMode[$count]},${res_TPSExcludingConnEstablishing[$count]},${res_OsMemoryStats[$count]},${res_OsCpuUsage[$count]},${res_PgBenchCpuMemUtilization[$count]},${PgTestType},${PgTestDatabase},${TestDatabaseTopology}" >> $csv_file
         fi
         ((count++))
     done

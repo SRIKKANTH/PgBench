@@ -229,6 +229,8 @@ def SetupClientVM(ClientFqdn,Client_Username,Client_Password):
         RollBack()
     else:
         print("Performance test setup completed")
+        return True
+    return False
 
 def CreateConfigFileForClient(EnvironmentData):
     filep = open("../sh/ConnectionProperties.csv","w")
@@ -305,17 +307,30 @@ if __name__ == '__main__':
             print(f"Failed to connect to created vm")
             RollBack()
 
-        SetupClientVM(ClientFqdn,Client_Username,Client_Password)
-        if db.InsertServerInfoIntoDb(EnvironmentData):
-            if db.InsertClientInfoIntoDb(EnvironmentData, Client_Hostname, ClientFqdn):
-                if db.InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
-                    print("Done configuring tests.")
-        
-        # Start the test now instead of waiting for next trigger interval
-        ssh.exec_cmd(ClientFqdn,Client_Username,Client_Password,"bash RunTest.sh")
-
-        # Generate First Hearbeat instead of waiting for next interval
-        ssh.exec_cmd(ClientFqdn,Client_Username,Client_Password,"sleep 30; bash SendHeartBeat.sh")
+        if SetupClientVM(ClientFqdn,Client_Username,Client_Password):
+            if db.InsertServerInfoIntoDb(EnvironmentData):
+                if db.InsertClientInfoIntoDb(EnvironmentData, Client_Hostname, ClientFqdn):
+                    if db.InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
+                        print("Done configuring tests.")
+                        print("Starting a dry run...")
+                        # Start the test now instead of waiting for next trigger interval
+                        ssh.exec_cmd(ClientFqdn,Client_Username,Client_Password,"bash RunTest.sh")
+                        print("Getting the first heartbeat")
+                        # Generate First Hearbeat instead of waiting for next interval
+                        ssh.exec_cmd(ClientFqdn,Client_Username,Client_Password,"sleep 30; bash SendHeartBeat.sh")
+                        exit (0)
+                    else:
+                        print("Failed to InsertTestInfoIntoDb")
+                        RollBack() 
+                else:
+                    print("Failed to InsertClientInfoIntoDb")
+                    RollBack() 
+            else:
+                print("Failed to InsertServerInfoIntoDb")
+                RollBack() 
+        else:
+            print("Failed to SetupClientVM")
+            RollBack() 
 
     except Exception as ErrMsg :
         print("Exception: "+ str(ErrMsg))

@@ -46,11 +46,14 @@ function SendMail()
     Subject_tag=$2
     MailBody=$3
     echo $MailBody
-    ReportEmail=`grep "ReportEmail" $TestDataFile`
-    echo "Sending Email Report to $ReportEmail with $Attachment attached and body: "`head $MailBody`
 
-    Subject="*`hostname`* - "$Subject_tag 
-    mail -a "From:Alfred" -a 'MIME-Version: 1.0' -a 'Content-Type: text/html; charset=iso-8859-1' -a 'X-AUTOR: Ing. Gareca' -s "$Subject" $ReportEmail -A $Attachment < $MailBody
+    for Email in `echo $ReportEmail| sed "s/;/ /"`
+    do
+        echo "Sending Email Report to $Email with $Attachment attached and body: "`head $MailBody`
+
+        Subject="*`hostname`* - "$Subject_tag 
+        mail -a "From:Alfred" -a 'MIME-Version: 1.0' -a 'Content-Type: text/html; charset=iso-8859-1' -a 'X-AUTOR: Ing. Gareca' -s "$Subject" $Email -A $Attachment < $MailBody
+    done
 }
 
 function get_MinMax()
@@ -172,7 +175,7 @@ export ScaleFactor=""
 rm -rf $HOME/test_config.sh > /dev/null 2>&1 
 # Get test_parameters_script column from $ScheduledTestsTable for this client $Client_Hostname
 ExecuteQueryOnLogsDB "select test_parameters_script from $ScheduledTestsTable WHERE Client_Hostname='$Client_Hostname';" | sed 's/+//'| sed 's/^ //'| grep -v "^[-(]"| sed s/test_parameters_script// > $HOME/test_config.sh
-
+ReportEmail=`ExecuteQueryOnLogsDB "select Report_Emails from $ScheduledTestsTable WHERE Client_Hostname='$Client_Hostname';" | sed 's/+//'| sed 's/^ //'| grep -v "^[-(]"| grep @`
 if [ `wc $HOME/test_config.sh | awk '{print $2}'` == 0 ]
 then
     echo "I couldn't find any test configuration assigned for me ($Client_Hostname) on log server"

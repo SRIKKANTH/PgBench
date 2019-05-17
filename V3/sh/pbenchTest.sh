@@ -551,7 +551,8 @@ do
     bash pgBenchParser.sh Logs/
     CsvFile=Logs/CSVs/$filetag.csv
     DbUploadFile=Logs/CSVs/$filetag.db
-    cat $CsvFile | grep -v ^Iteration > $DbUploadFile
+    #cat $CsvFile | grep -v ^Iteration > $DbUploadFile
+    cat $CsvFile | awk '!/,,/' > $DbUploadFile
     sed -i "s/ms//g" $DbUploadFile
     UploadStatsToLogsDB $DbUploadFile
 
@@ -561,6 +562,8 @@ do
     else
         SendMail $LogFile "pgbench Test Completed" /etc/hostname
     fi
+    # Check if the db still working fine.
+    run_psql_cmd "select 1;"
 
     echo "------------------------------End of Test Iteration: $Current_Test_Iteration at "`date`"------------------------------"
     ((Current_Test_Iteration++))

@@ -90,7 +90,7 @@ def ValidateParameters(EnvironmentData):
                 print(f"Access to Test_Server_fqdn: {Test_Server_fqdn} **Failed**.\nCheck your settings and re-try. Without this tests cannot be scheduled and executed")
                 exit(1)
             else:
-                print(f"Access to LogsDbTest_Server_fqdnServer: {Test_Server_fqdn}: Success!\n")
+                print(f"Access to LogsDbTest_Server_fqdnServer: {Test_Server_fqdn}: \nSuccess!\n")
 
     # Verify regions of both client and server
     if Test_Server_Region != Client_Region:
@@ -107,7 +107,7 @@ def ValidateParameters(EnvironmentData):
         print(f"Access to LogsDbServer: {LogsDbServer} **Failed**. \n Check your setting and re-try. \nWithout this tests cannot be scheduled or executed")
         RollBack()
     else:
-        print(f"Access to LogsDbServer: {LogsDbServer}: Success!\n")
+        print(f"Access to LogsDbServer: {LogsDbServer}: \nSuccess!\n")
     
     # Check if there is server config already exists
     result=db.check_row_exists(LogsDbServer, LogsDbServerUsername, LogsDbServerPassword, LogsDataBase, ServerInfoTableName, Column="test_server_fqdn", Value=Test_Server_fqdn)
@@ -131,7 +131,7 @@ def CreateResourceGroup(EnvironmentData):
         print(f"Failed to create resource group: {Client_Resource_Group}")
         RollBack()
     else:
-        print(f"Success!\n)
+        print(f"Success!\n")
 
 def RollBack():
     print(f"FATAL: Occured unrecovered failure. Trying to roll back changes and exit.")
@@ -330,7 +330,7 @@ def CreateClientVirtualMachine (EnvironmentData):
         print('Exiting...')
         return False
     else:
-        print("Success!\n)
+        print("Success!\n")
 
     NameTag = "perf-client-"+str(datetime.datetime.now().strftime("%y%m%d%H%M%S"))
 

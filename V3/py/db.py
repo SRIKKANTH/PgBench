@@ -124,9 +124,9 @@ def InsertTestInfoIntoDb(EnvironmentData):
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
         PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
-        print("Success!\n)
+        print("Success!\n")
     else:
-        print("Failed!")
+        print("Failed!\n")
 
     # Check if there is a test config already exists for 'Client_Hostname'
     result=check_row_exists(EnvironmentData['LogsDBConfig']['LogsDbServer'], \

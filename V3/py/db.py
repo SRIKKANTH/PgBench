@@ -85,14 +85,16 @@ def InsertServerInfoIntoDb (EnvironmentData):
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
         PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
-        print("Success!.\n")
+        print("Success!\n")
         return(True)
     else:
-        print("Failed!.\n")
+        print("Failed!\n")
         return(False)
 
-def InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
+#def InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
+def InsertTestInfoIntoDb(EnvironmentData):
     print(f"Trying to InsertTestInfoIntoDb")
+    Client_Hostname = EnvironmentData["ClientDetails"]["Client_Hostname"]
 
     # Check if there is a test config already exists for '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}'
     result=check_row_exists(EnvironmentData['LogsDBConfig']['LogsDbServer'], \
@@ -101,17 +103,19 @@ def InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
         EnvironmentData['LogsDBConfig']['LogsDataBase'], \
         EnvironmentData['LogsDBConfig']['ScheduledTestsTable'], Column="test_server", \
         Value=EnvironmentData['ServerDetails']['Test_Server_fqdn'])
+
     if result:
         print(f"There is already a row exists for '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}' in '{EnvironmentData['LogsDBConfig']['ScheduledTestsTable']}' table")
         print(f"Deleting existing Config for given server: '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}' in {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']}")
+
         PgQuery=f"DELETE FROM {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} where test_server='{EnvironmentData['ServerDetails']['Test_Server_fqdn']}'"
         if run_pg_query (EnvironmentData['LogsDBConfig']['LogsDbServer'], \
             EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
             EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
             PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
-            print("Success!.\n")
+            print("Success!\n")
         else:
-            print("Failed!.\n")
+            print("Failed!\n")
 
     # Fixing 'ClientInfoTableName' table. Free current test server from other clients
     print(f"Fixing '{EnvironmentData['LogsDBConfig']['ClientInfoTableName']}' table. Free the current test server from other clients")
@@ -120,9 +124,9 @@ def InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
         PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
-        print("Success!.\n")
+        print("Success!\n)
     else:
-        print("Failed!.\n")
+        print("Failed!")
 
     # Check if there is a test config already exists for 'Client_Hostname'
     result=check_row_exists(EnvironmentData['LogsDBConfig']['LogsDbServer'], \
@@ -162,13 +166,16 @@ def InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
         PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
-        print("Success!.\n")
+        print("Success!\n")
         return(True)
     else:
-        print("Failed!.\n")
+        print("Failed!\n")
 
-def InsertClientInfoIntoDb (EnvironmentData, Client_Hostname, ClientFqdn):
+#def InsertClientInfoIntoDb (EnvironmentData, Client_Hostname, ClientFqdn):
+def InsertClientInfoIntoDb (EnvironmentData):
     print(f"Trying to InsertClientInfoIntoDb")
+    Client_Hostname = EnvironmentData["ClientDetails"]["Client_Hostname"]
+
     # Check if there is a config already exists for 'Client_Hostname'
     result=check_row_exists(EnvironmentData['LogsDBConfig']['LogsDbServer'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
@@ -203,16 +210,16 @@ def InsertClientInfoIntoDb (EnvironmentData, Client_Hostname, ClientFqdn):
         '{EnvironmentData['ClientDetails']['Client_VM_SKU']}', \
         '{EnvironmentData['ClientDetails']['Client_Username']}', \
         '{EnvironmentData['ClientDetails']['Client_Password']}', \
-        '{ClientFqdn}' );"""
+        '{EnvironmentData["ClientDetails"]["Client_FQDN"]}' );"""
 
     if run_pg_query (EnvironmentData['LogsDBConfig']['LogsDbServer'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
         PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
-        print("Success!.\n")
+        print("Success!\n")
         return(True)
     else:
-        print("Failed!.\n")
+        print("Failed!\n")
         return(False)
 
 def run_pg_query(PgServer, PgServerUsername, PgServerPassword, PgQuery, PgDatabase='postgres'):

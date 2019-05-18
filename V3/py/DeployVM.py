@@ -23,6 +23,11 @@ try:
         EnvironmentData["ClientDetails"]["Client_Region"]=EnvironmentData["ClientDetails"]["Client_Region"].lower()
         EnvironmentData["ClientDetails"]["Client_VM_SKU"]=EnvironmentData["ClientDetails"]["Client_VM_SKU"].lower()
         EnvironmentData["ServerDetails"]["Test_Server_Region"] = EnvironmentData["ServerDetails"]["Test_Server_Region"].lower()
+        EnvironmentData["ServerDetails"]["Test_Server_Server_Edition"] = EnvironmentData["ServerDetails"]["Test_Server_Server_Edition"].lower()
+        EnvironmentData["ServerDetails"]["Test_Database_Topology"] = EnvironmentData["ServerDetails"]["Test_Database_Topology"].lower()
+        EnvironmentData["ServerDetails"]["Test_Database_Type"] = EnvironmentData["ServerDetails"]["Test_Database_Type"].lower()
+        EnvironmentData["ServerDetails"]["Test_Database_Name"] = EnvironmentData["ServerDetails"]["Test_Database_Name"].lower()
+        EnvironmentData["ServerDetails"]["Test_Server_Environment"]  = EnvironmentData["ServerDetails"]["Test_Server_Environment"].lower()
 
         # Get Client Info
         SubscriptionId=EnvironmentData["ClientDetails"]["SubscriptionId"]
@@ -84,13 +89,14 @@ def ValidateParameters(EnvironmentData):
     else:
         if Test_Database_Type=='postgres':
             # Check Test_Server accessibility.
+            print(f"Access to Test_Server_fqdn: {Test_Server_fqdn}:") 
             result=db.check_connectivity (Test_Server_fqdn, Test_Server_Username, \
                 Test_Server_Password,Test_Database_Name)
             if not result:
-                print(f"Access to Test_Server_fqdn: {Test_Server_fqdn} **Failed**.\nCheck your settings and re-try. Without this tests cannot be scheduled and executed")
+                print(f"**Failed**.\nCheck your settings and re-try. Without this tests cannot be scheduled and executed")
                 exit(1)
             else:
-                print(f"Access to LogsDbTest_Server_fqdnServer: {Test_Server_fqdn}: \nSuccess!\n")
+                print(f"Success!\n")
 
     # Verify regions of both client and server
     if Test_Server_Region != Client_Region:
@@ -102,12 +108,13 @@ def ValidateParameters(EnvironmentData):
             print(f"This will be a cross region test. The performance will be a lot less than same region tests due to higher network latencies")
 
     # Check LogsDbServer accessibility.
+    print(f"Access to LogsDbServer: {LogsDbServer}:")
     result=db.check_connectivity (LogsDbServer, LogsDbServerUsername, LogsDbServerPassword, LogsDataBase)
     if not result:
-        print(f"Access to LogsDbServer: {LogsDbServer} **Failed**. \n Check your setting and re-try. \nWithout this tests cannot be scheduled or executed")
+        print(f"**Failed**. \n Check your setting and re-try. \nWithout this tests cannot be scheduled or executed")
         RollBack()
     else:
-        print(f"Access to LogsDbServer: {LogsDbServer}: \nSuccess!\n")
+        print(f"Success!\n")
     
     # Check if there is server config already exists
     result=db.check_row_exists(LogsDbServer, LogsDbServerUsername, LogsDbServerPassword, LogsDataBase, ServerInfoTableName, Column="test_server_fqdn", Value=Test_Server_fqdn)
@@ -297,7 +304,7 @@ def UpdateConfig(EnvironmentData, Client_Hostname = None):
                     ssh.exec_cmd(Client_FQDN, Client_Username, Client_Password, "bash RunTest.sh")
                     print("Getting the first heartbeat")
                     # Generate First Hearbeat instead of waiting for next interval
-                    ssh.exec_cmd(Client_FQDN, Client_Username, Client_Password, "sleep 30; bash SendHeartBeat.sh")
+                    ssh.exec_cmd(Client_FQDN, Client_Username, Client_Password, "sleep 5; bash SendHeartBeat.sh")
                 else:
                     print("Failed to InsertTestInfoIntoDb")
                     return False

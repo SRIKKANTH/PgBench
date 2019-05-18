@@ -24,6 +24,8 @@ function InstallDependencies()
         if [[ `which pgbench` == "" ]]; then
             echo "FATAL: Failted to install 'pgbench'!"
             InstallationFailed='Yes'
+        else
+            echo "INFO: Installation of 'pgbench' succeeded!"
         fi
     else
         echo "Skipping 'pgbench' installation as already installed"
@@ -34,12 +36,15 @@ function InstallDependencies()
         echo "INFO: sysstat: not installed!"
         echo "INFO: sysstat: Trying to install!"
         sudo DEBIAN_FRONTEND=noninteractive apt --assume-yes --fix-broken -y install
-        sudo DEBIAN_FRONTEND=noninteractive  apt-get --assume-yes install -y sysstat
+        sudo DEBIAN_FRONTEND=noninteractive  apt-get --assume-yes install -y sysstat bc
 
         # Check if sysstat installed or not
         if [[ `which sysstat` == "" ]]; then
             echo "FATAL: Failted to install 'sysstat'!"
             InstallationFailed='Yes'
+
+        else
+            echo "INFO: Installation of 'sysstat' succeeded!"
         fi
     else
         echo "Skipping 'sysstat' installation as already installed"
@@ -56,6 +61,9 @@ function InstallDependencies()
         if [[ `which mail` == "" ]]; then
             echo "FATAL: Failted to install 'mailutils'!"
             InstallationFailed='Yes'
+
+        else
+            echo "INFO: Installation of 'mailutils' succeeded!"
         fi
     else
         echo "Skipping 'mailutils' installation as already installed"

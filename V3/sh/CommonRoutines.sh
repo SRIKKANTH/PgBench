@@ -47,7 +47,7 @@ function SendMail()
     MailBody=$3
     echo $MailBody
 
-    for Email in `echo $ReportEmail| sed "s/;/ /"`
+    for Email in `echo $ReportEmail| sed "s/;/ /g"`
     do
         echo "Sending Email Report to $Email with $Attachment attached and body: "`head $MailBody`
 

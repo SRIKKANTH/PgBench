@@ -218,6 +218,7 @@ def CreateVirtualMachine(EnvironmentData):
         --location {Client_Region} --name {Client_Hostname} --nics {NicName} --image {OSImage} \
         --size {Client_VM_SKU} --admin-username {Client_Username} --admin-password {Client_Password}", \
         shell=True, encoding='utf8')
+    print(ReturnStatus)
     ReturnStatusJson = json.loads(ReturnStatus)
     if 'VM running' != ReturnStatusJson["powerState"]:
         print(f"FATAL: Failed to create virtual machine: {Client_Hostname}")

@@ -41,19 +41,42 @@ CREATE TABLE Scheduled_tests
 );
 '''
 
-def InsertServerInfoIntoDb (EnvironmentData):
+def InsertServerInfoIntoDb (EnvironmentData, TestData):
     print(f"Trying to InsertServerInfoIntoDb")
+
+    if TestData['ServerDetails']['Test_Server_fqdn'] == None:
+        print(f"Invalid Client_Hostname") 
+        return False
+
+    if TestData['ServerDetails']['Test_Server_fqdn'] == "":
+        print(f"Invalid Client_Hostname") 
+        return False
+
     # Check if there is server config already exists
     result=check_row_exists(EnvironmentData['LogsDBConfig']['LogsDbServer'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
         EnvironmentData['LogsDBConfig']['LogsDataBase'], \
         EnvironmentData['LogsDBConfig']['ServerInfoTableName'], Column="test_server_fqdn", \
-        Value=EnvironmentData['ServerDetails']['Test_Server_fqdn'])
+        Value=TestData['ServerDetails']['Test_Server_fqdn'])
     if result:
-        print(f"Skipping 'InsertServerInfoIntoDb' as there is already a row exists for '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}'")
-        return True
+        print(f"Updating 'InsertServerInfoIntoDb' as there is already a row exists for '{TestData['ServerDetails']['Test_Server_fqdn']}'")
+        
+        PgQuery=f"""UPDATE {EnvironmentData['LogsDBConfig']['ServerInfoTableName']} \
+        set Server_Last_HeartBeat = '1900-01-01 00:00:00', \
+        Test_Server_Region = '{TestData['ServerDetails']['Test_Server_Region']}', \
+        Test_Server_Environment = '{TestData['ServerDetails']['Test_Server_Environment']}', \
+        Test_Server_Server_Edition = '{TestData['ServerDetails']['Test_Server_Server_Edition']}', \
+        Test_Server_CPU_Cores = {TestData['ServerDetails']['Test_Server_CPU_Cores']}, \
+        Test_Server_Storage_In_MB = {TestData['ServerDetails']['Test_Server_Storage_In_MB']}, \
+        Test_Server_Username = '{TestData['ServerDetails']['Test_Server_Username']}', \
+        Test_Server_Password = '{TestData['ServerDetails']['Test_Server_Password']}', \
+        Test_Database_Type = '{TestData['ServerDetails']['Test_Database_Type']}', \
+        Test_Database_Topology = '{TestData['ServerDetails']['Test_Database_Topology']}', \
+        Test_Database_Name = '{TestData['ServerDetails']['Test_Database_Name']}'
+        where Test_Server_fqdn = '{TestData['ServerDetails']['Test_Server_fqdn']}'"""
     else:
+        print(f"Inserting '{TestData['ServerDetails']['Test_Server_fqdn']}' details into 'InsertServerInfoIntoDb' ")
         PgQuery=f"""INSERT INTO {EnvironmentData['LogsDBConfig']['ServerInfoTableName']} \
         (Test_Server_fqdn, \
         Server_Last_HeartBeat, \
@@ -68,18 +91,18 @@ def InsertServerInfoIntoDb (EnvironmentData):
         Test_Database_Topology, \
         Test_Database_Name \
         ) VALUES ( \
-        '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}', \
+        '{TestData['ServerDetails']['Test_Server_fqdn']}', \
         '1900-01-01 00:00:00', \
-        '{EnvironmentData['ServerDetails']['Test_Server_Region']}', \
-        '{EnvironmentData['ServerDetails']['Test_Server_Environment']}', \
-        '{EnvironmentData['ServerDetails']['Test_Server_Server_Edition']}', \
-        {EnvironmentData['ServerDetails']['Test_Server_CPU_Cores']}, \
-        {EnvironmentData['ServerDetails']['Test_Server_Storage_In_MB']}, \
-        '{EnvironmentData['ServerDetails']['Test_Server_Username']}', \
-        '{EnvironmentData['ServerDetails']['Test_Server_Password']}', \
-        '{EnvironmentData['ServerDetails']['Test_Database_Type']}', \
-        '{EnvironmentData['ServerDetails']['Test_Database_Topology']}', \
-        '{EnvironmentData['ServerDetails']['Test_Database_Name']}' );"""
+        '{TestData['ServerDetails']['Test_Server_Region']}', \
+        '{TestData['ServerDetails']['Test_Server_Environment']}', \
+        '{TestData['ServerDetails']['Test_Server_Server_Edition']}', \
+        {TestData['ServerDetails']['Test_Server_CPU_Cores']}, \
+        {TestData['ServerDetails']['Test_Server_Storage_In_MB']}, \
+        '{TestData['ServerDetails']['Test_Server_Username']}', \
+        '{TestData['ServerDetails']['Test_Server_Password']}', \
+        '{TestData['ServerDetails']['Test_Database_Type']}', \
+        '{TestData['ServerDetails']['Test_Database_Topology']}', \
+        '{TestData['ServerDetails']['Test_Database_Name']}' );"""
 
     if run_pg_query ( EnvironmentData['LogsDBConfig']['LogsDbServer'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
@@ -88,27 +111,34 @@ def InsertServerInfoIntoDb (EnvironmentData):
         print("Success!\n")
         return(True)
     else:
-        print("Failed!\n")
+        print(f"Failed to execute PgQuery: '{PgQuery}'\n")
         return(False)
 
 #def InsertTestInfoIntoDb(EnvironmentData, Client_Hostname):
-def InsertTestInfoIntoDb(EnvironmentData):
+def InsertTestInfoIntoDb(EnvironmentData, TestData):
     print(f"Trying to InsertTestInfoIntoDb")
-    Client_Hostname = EnvironmentData["ClientDetails"]["Client_Hostname"]
+    Client_Hostname = TestData["ClientDetails"]["Client_Hostname"]
 
-    # Check if there is a test config already exists for '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}'
+    if Client_Hostname == None:
+        print(f"Invalid Client_Hostname") 
+        return False
+    if Client_Hostname == "":
+        print(f"Invalid Client_Hostname") 
+        return False
+
+    # Check if there is a test config already exists for '{TestData['ServerDetails']['Test_Server_fqdn']}'
     result=check_row_exists(EnvironmentData['LogsDBConfig']['LogsDbServer'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
         EnvironmentData['LogsDBConfig']['LogsDataBase'], \
         EnvironmentData['LogsDBConfig']['ScheduledTestsTable'], Column="test_server", \
-        Value=EnvironmentData['ServerDetails']['Test_Server_fqdn'])
+        Value=TestData['ServerDetails']['Test_Server_fqdn'])
 
     if result:
-        print(f"There is already a row exists for '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}' in '{EnvironmentData['LogsDBConfig']['ScheduledTestsTable']}' table")
-        print(f"Deleting existing Config for given server: '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}' in {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']}")
+        print(f"There is already a row exists for '{TestData['ServerDetails']['Test_Server_fqdn']}' in '{EnvironmentData['LogsDBConfig']['ScheduledTestsTable']}' table")
+        print(f"Deleting existing Config for given server: '{TestData['ServerDetails']['Test_Server_fqdn']}' in {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']}")
 
-        PgQuery=f"DELETE FROM {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} where test_server='{EnvironmentData['ServerDetails']['Test_Server_fqdn']}'"
+        PgQuery=f"DELETE FROM {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} where test_server='{TestData['ServerDetails']['Test_Server_fqdn']}'"
         if run_pg_query (EnvironmentData['LogsDBConfig']['LogsDbServer'], \
             EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
             EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
@@ -116,10 +146,11 @@ def InsertTestInfoIntoDb(EnvironmentData):
             print("Success!\n")
         else:
             print("Failed!\n")
+            return(False)
 
     # Fixing 'ClientInfoTableName' table. Free current test server from other clients
     print(f"Fixing '{EnvironmentData['LogsDBConfig']['ClientInfoTableName']}' table. Free the current test server from other clients")
-    PgQuery=f"update {EnvironmentData['LogsDBConfig']['ClientInfoTableName']} set test_server_assigned='None' where test_server_assigned='{EnvironmentData['ServerDetails']['Test_Server_fqdn']}'"
+    PgQuery=f"update {EnvironmentData['LogsDBConfig']['ClientInfoTableName']} set test_server_assigned='None' where test_server_assigned='{TestData['ServerDetails']['Test_Server_fqdn']}'"
     if run_pg_query (EnvironmentData['LogsDBConfig']['LogsDbServer'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
@@ -127,6 +158,7 @@ def InsertTestInfoIntoDb(EnvironmentData):
         print("Success!\n")
     else:
         print("Failed!\n")
+        return(False)
 
     # Check if there is a test config already exists for 'Client_Hostname'
     result=check_row_exists(EnvironmentData['LogsDBConfig']['LogsDbServer'], \
@@ -140,11 +172,11 @@ def InsertTestInfoIntoDb(EnvironmentData):
         print(f"Config for given Client: '{Client_Hostname}' in {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} will be modifed with new details")
 
         PgQuery=f"UPDATE {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} set \
-        Test_Server='{EnvironmentData['ServerDetails']['Test_Server_fqdn']}', \
-        Test_Type='{EnvironmentData['TestConfig']['Test_Type']}', \
-        Test_Database_Type='{EnvironmentData['ServerDetails']['Test_Database_Type']}', \
-        Report_Emails='{EnvironmentData['TestConfig']['Report_Emails']}', \
-        Test_Parameters_script='{EnvironmentData['TestConfig']['Test_Parameters_script']}' \
+        Test_Server='{TestData['ServerDetails']['Test_Server_fqdn']}', \
+        Test_Type='{TestData['TestConfig']['Test_Type']}', \
+        Test_Database_Type='{TestData['ServerDetails']['Test_Database_Type']}', \
+        Report_Emails='{TestData['TestConfig']['Report_Emails']}', \
+        Test_Parameters_script='{TestData['TestConfig']['Test_Parameters_script']}' \
         WHERE Client_Hostname='{Client_Hostname}'"
     else:
         PgQuery=f"INSERT INTO {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} (\
@@ -156,11 +188,11 @@ def InsertTestInfoIntoDb(EnvironmentData):
         Test_Parameters_script \
         ) VALUES ( \
         '{Client_Hostname}', \
-        '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}', \
-        '{EnvironmentData['TestConfig']['Test_Type']}', \
-        '{EnvironmentData['ServerDetails']['Test_Database_Type']}', \
-        '{EnvironmentData['TestConfig']['Report_Emails']}', \
-        '{EnvironmentData['TestConfig']['Test_Parameters_script']}');" 
+        '{TestData['ServerDetails']['Test_Server_fqdn']}', \
+        '{TestData['TestConfig']['Test_Type']}', \
+        '{TestData['ServerDetails']['Test_Database_Type']}', \
+        '{TestData['TestConfig']['Report_Emails']}', \
+        '{TestData['TestConfig']['Test_Parameters_script']}');" 
 
     if run_pg_query (EnvironmentData['LogsDBConfig']['LogsDbServer'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
@@ -169,12 +201,18 @@ def InsertTestInfoIntoDb(EnvironmentData):
         print("Success!\n")
         return(True)
     else:
-        print("Failed!\n")
+        print("Failed to execute PgQuery: '{PgQuery}'\n")
+        return(False)
 
-#def InsertClientInfoIntoDb (EnvironmentData, Client_Hostname, ClientFqdn):
-def InsertClientInfoIntoDb (EnvironmentData):
+def InsertClientInfoIntoDb (EnvironmentData, TestData):
     print(f"Trying to InsertClientInfoIntoDb")
-    Client_Hostname = EnvironmentData["ClientDetails"]["Client_Hostname"]
+    Client_Hostname = TestData["ClientDetails"]["Client_Hostname"]
+    if Client_Hostname == None:
+        print(f"Invalid Client_Hostname") 
+        return False
+    if Client_Hostname == "":
+        print(f"Invalid Client_Hostname") 
+        return False
 
     # Check if there is a config already exists for 'Client_Hostname'
     result=check_row_exists(EnvironmentData['LogsDBConfig']['LogsDbServer'], \
@@ -188,8 +226,28 @@ def InsertClientInfoIntoDb (EnvironmentData):
         print(f"Config for given Client: '{Client_Hostname}' in {EnvironmentData['LogsDBConfig']['ClientInfoTableName']} will be modifed for new client")
 
         PgQuery=f"UPDATE {EnvironmentData['LogsDBConfig']['ScheduledTestsTable']} set \
-        Test_Server_Assigned='{EnvironmentData['ServerDetails']['Test_Server_fqdn']}', \
-        WHERE Client_Hostname='{Client_Hostname}'"
+        Test_Server='{TestData['ServerDetails']['Test_Server_fqdn']}' \
+        WHERE Client_Hostname='{Client_Hostname}' ;"
+        if run_pg_query (EnvironmentData['LogsDBConfig']['LogsDbServer'], \
+            EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
+            EnvironmentData['LogsDBConfig']['LogsDbServerPassword'], \
+            PgQuery,PgDatabase=EnvironmentData['LogsDBConfig']['LogsDataBase']):
+            print("Success!\n")
+        else:
+            print("Failed!\n")
+            return(False)
+
+        PgQuery=f"""UPDATE {EnvironmentData['LogsDBConfig']['ClientInfoTableName']} \
+        set Client_Last_HeartBeat = '1900-01-01 00:00:00', \
+        Test_Server_Assigned = '{TestData['ServerDetails']['Test_Server_fqdn']}', \
+        Client_Region = '{TestData['ClientDetails']['Client_Region']}', \
+        Client_Resource_Group = '{TestData['ClientDetails']['Client_Resource_Group']}', \
+        Client_VM_SKU = '{TestData['ClientDetails']['Client_VM_SKU']}', \
+        Client_Username = '{TestData['ClientDetails']['Client_Username']}', \
+        Client_Password = '{TestData['ClientDetails']['Client_Password']}', \
+        Client_FQDN = '{TestData["ClientDetails"]["Client_FQDN"]}' \
+        where Client_Hostname='{Client_Hostname}';"""
+
     else:
         PgQuery=f"""INSERT INTO {EnvironmentData['LogsDBConfig']['ClientInfoTableName']} \
         (Client_Hostname, \
@@ -204,13 +262,13 @@ def InsertClientInfoIntoDb (EnvironmentData):
         ) VALUES ( \
         '{Client_Hostname}', \
         '1900-01-01 00:00:00', \
-        '{EnvironmentData['ServerDetails']['Test_Server_fqdn']}', \
-        '{EnvironmentData['ClientDetails']['Client_Region']}', \
-        '{EnvironmentData['ClientDetails']['Client_Resource_Group']}', \
-        '{EnvironmentData['ClientDetails']['Client_VM_SKU']}', \
-        '{EnvironmentData['ClientDetails']['Client_Username']}', \
-        '{EnvironmentData['ClientDetails']['Client_Password']}', \
-        '{EnvironmentData["ClientDetails"]["Client_FQDN"]}' );"""
+        '{TestData['ServerDetails']['Test_Server_fqdn']}', \
+        '{TestData['ClientDetails']['Client_Region']}', \
+        '{TestData['ClientDetails']['Client_Resource_Group']}', \
+        '{TestData['ClientDetails']['Client_VM_SKU']}', \
+        '{TestData['ClientDetails']['Client_Username']}', \
+        '{TestData['ClientDetails']['Client_Password']}', \
+        '{TestData["ClientDetails"]["Client_FQDN"]}' );"""
 
     if run_pg_query (EnvironmentData['LogsDBConfig']['LogsDbServer'], \
         EnvironmentData['LogsDBConfig']['LogsDbServerUsername'], \
@@ -237,23 +295,18 @@ def run_pg_query(PgServer, PgServerUsername, PgServerPassword, PgQuery, PgDataba
 
         # Try to connect
         try:
-            #print(f"Executing query:{PgQuery} on host='{PgServer}' dbname='{PgDatabase}' user='{PgServerUsername}' password='{PgServerPassword}'")
-
             conn=psycopg2.connect(f"host='{PgServer}' dbname='{PgDatabase}' \
                 user='{PgServerUsername}' password='{PgServerPassword}'")
             cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-            
             try:
                 cur.execute(PgQuery)
-            except:
-                print(f"Failed to execute query{PgQuery} on server{PgServer}")
-
-            if "select" in PgQuery.lower():
-                Result = cur.fetchall()
-            else:
-                try:
+                if "select" in PgQuery.lower(): # In case of select return the output
+                    Result = cur.fetchall()
+                else:
                     # commit the changes to the database
                     conn.commit()
+                    Result = True
+                try:
                     # close communication with the database
                     cur.close()
                 except (Exception, psycopg2.DatabaseError) as error:
@@ -261,7 +314,8 @@ def run_pg_query(PgServer, PgServerUsername, PgServerPassword, PgQuery, PgDataba
                 finally:
                     if conn is not None:
                         conn.close()
-                Result = True
+            except:
+                print(f"Failed to execute query{PgQuery} on server{PgServer}")
         except:
             print(f"Unable to connect to PgServer: '{PgServer}'")
 
@@ -302,26 +356,26 @@ if __name__ == '__main__':
             EnvironmentData = json.load(EnvironmentFile)
 
             # Get Client Info
-            SubscriptionId=EnvironmentData['ClientDetails']['SubscriptionId']
-            Client_Hostname = EnvironmentData['ClientDetails']['Client_Hostname']
-            Client_Region = EnvironmentData['ClientDetails']['Client_Region']
-            Client_Resource_Group=EnvironmentData['ClientDetails']['Client_Resource_Group']
-            Client_VM_SKU = EnvironmentData['ClientDetails']['Client_VM_SKU'].lower()
-            Client_Username = EnvironmentData['ClientDetails']['Client_Username']
-            Client_Password = EnvironmentData['ClientDetails']['Client_Password']
-            OSImage = EnvironmentData['ClientDetails']['OSImage']
+            SubscriptionId=TestData['ClientDetails']['SubscriptionId']
+            Client_Hostname = TestData['ClientDetails']['Client_Hostname']
+            Client_Region = TestData['ClientDetails']['Client_Region']
+            Client_Resource_Group=TestData['ClientDetails']['Client_Resource_Group']
+            Client_VM_SKU = TestData['ClientDetails']['Client_VM_SKU'].lower()
+            Client_Username = TestData['ClientDetails']['Client_Username']
+            Client_Password = TestData['ClientDetails']['Client_Password']
+            OSImage = TestData['ClientDetails']['OSImage']
 
             # Get Server Info
-            Test_Server_fqdn = EnvironmentData['ServerDetails']['Test_Server_fqdn']
-            Test_Server_Region = EnvironmentData['ServerDetails']['Test_Server_Region']
-            Test_Server_Environment = EnvironmentData['ServerDetails']['Test_Server_Environment'] # It should be 'Stage' or 'Prod' or 'Orcas' ; Orcas -> Current Azure PG PaaS or Sterling PG
-            Test_Server_Server_Edition = EnvironmentData['ServerDetails']['Test_Server_Server_Edition']
-            Test_Server_CPU_Cores = EnvironmentData['ServerDetails']['Test_Server_CPU_Cores']
-            Test_Server_Storage_In_MB = EnvironmentData['ServerDetails']['Test_Server_Storage_In_MB']
-            Test_Server_Username = EnvironmentData['ServerDetails']['Test_Server_Username']
-            Test_Server_Password = EnvironmentData['ServerDetails']['Test_Server_Password']
-            Test_Database_Type = EnvironmentData['ServerDetails']['Test_Database_Type']
-            Test_Database_Name = EnvironmentData['ServerDetails']['Test_Database_Name']
+            Test_Server_fqdn = TestData['ServerDetails']['Test_Server_fqdn']
+            Test_Server_Region = TestData['ServerDetails']['Test_Server_Region']
+            Test_Server_Environment = TestData['ServerDetails']['Test_Server_Environment'] # It should be 'Stage' or 'Prod' or 'Orcas' ; Orcas -> Current Azure PG PaaS or Sterling PG
+            Test_Server_Server_Edition = TestData['ServerDetails']['Test_Server_Server_Edition']
+            Test_Server_CPU_Cores = TestData['ServerDetails']['Test_Server_CPU_Cores']
+            Test_Server_Storage_In_MB = TestData['ServerDetails']['Test_Server_Storage_In_MB']
+            Test_Server_Username = TestData['ServerDetails']['Test_Server_Username']
+            Test_Server_Password = TestData['ServerDetails']['Test_Server_Password']
+            Test_Database_Type = TestData['ServerDetails']['Test_Database_Type']
+            Test_Database_Name = TestData['ServerDetails']['Test_Database_Name']
 
             # Get Logs/Results DB Info
             LogsDbServer = EnvironmentData['LogsDBConfig']['LogsDbServer']
@@ -335,7 +389,7 @@ if __name__ == '__main__':
             ScheduledTestsTable = EnvironmentData['LogsDBConfig']['ScheduledTestsTable']
 
             # Get Test Info
-            Test_Parameters_script = EnvironmentData['TestConfig']['Test_Parameters_script']
+            Test_Parameters_script = TestData['TestConfig']['Test_Parameters_script']
     except IOError:
         print(f"Cannot find ConfigurationFile({ConfigurationFile}). Please check and re-try!")
         exit(1)

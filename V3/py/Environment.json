@@ -1,44 +1,4 @@
 {
-"// -- Comment for *Operation* ":"Allowed values 'update','create' ",
-    "Operation":"cReatE",
-
-    "ClientDetails":{
-        "SubscriptionId":"7fec0000-0078-4000-0004-500006000006",
-        "Client_Resource_Group":"longhaul-perf-clients",
-        "Client_Region":"eastus",
-        "Client_VM_SKU":"Standard_D4s_v3",
-        "Client_Username":"myuser",
-        "Client_Password":"mypassword",
-"// -- Comment for *Client_Hostname*":"Use this field only if you want to update a testconfig or use existing client VM. Leave empty for creating new VM",
-        "Client_Hostname":"",
-        "Client_FQDN":"",
-        "OSImage":""
-    },
-
-    "ServerDetails":{
-        "Test_Server_fqdn":"zzzxxxcc-test.postgres.database.azure.com",
-        "Test_Server_Username":"server_username",
-        "Test_Server_Password":"server_password",
-        "Test_Server_Region":"eastus",
-"// -- Comment for *Test_Server_Environment *":"Possible Values are Stage, Prod and Orcas. Orcas is 'Azure Database for PostgreSQL'",
-        "Test_Server_Environment":"Prod",
-        "Test_Server_Server_Edition":"GeneralPurpose",
-        "Test_Server_CPU_Cores":4,
-        "Test_Server_Storage_In_MB":1048576,
-"// -- Comment for *Test_Database_Type* ":"This is db engine name. Possible values 'postgres', 'mysql'",
-        "Test_Database_Type":"postgres",
-"// -- Comment for *Test_Database_Name* ":"Name of database under test. Possible values for postgres db engine are 'citus', 'postgres'",
-        "Test_Database_Name":"citus",
-"// -- Comment for *Test_Database_Topology* ":"Possible values for postgres are 'citus', 'stand_alone_postgres'.",
-        "Test_Database_Topology":"stand_alone_postgres"
-    },
-
-    "TestConfig":{
-        "Report_Emails":"srm@contoso.com",
-        "Test_Type":"pgbench",
-        "Test_Parameters_script":"export Duration=7200;export ConnectionsList=(1 2 4 8 16 32 48 100 200);export ScaleFactor=2000;"
-    },
-
     "LogsDBConfig":{
 "// -- Comment for *LogsDBConfig* ":"These are system specific do not change these unless you know what you are exactly doing",
         "LogsDbServer":"longhaulperfdb",

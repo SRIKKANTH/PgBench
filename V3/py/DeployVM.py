@@ -5,6 +5,7 @@ import os
 import time
 import db
 import ssh
+import logging
 
 try:
     import commands
@@ -12,74 +13,65 @@ except ImportError:
     import subprocess as commands
 
 ConfigurationFile='./Environment.json'
+TestDataFile='./TestData.json'
+
+#logging.basicConfig(level=logging.INFO)
+#logger = logging.getLogger(__name__)
 
 try:
     # Initialise parameters
     with open(ConfigurationFile) as EnvironmentFile:  
         EnvironmentData = json.load(EnvironmentFile)
-        
-        # Operation
-        EnvironmentData["Operation"]=EnvironmentData["Operation"].lower()
-        EnvironmentData["ClientDetails"]["Client_Region"]=EnvironmentData["ClientDetails"]["Client_Region"].lower()
-        EnvironmentData["ClientDetails"]["Client_VM_SKU"]=EnvironmentData["ClientDetails"]["Client_VM_SKU"].lower()
-        EnvironmentData["ServerDetails"]["Test_Server_Region"] = EnvironmentData["ServerDetails"]["Test_Server_Region"].lower()
-        EnvironmentData["ServerDetails"]["Test_Server_Server_Edition"] = EnvironmentData["ServerDetails"]["Test_Server_Server_Edition"].lower()
-        EnvironmentData["ServerDetails"]["Test_Database_Topology"] = EnvironmentData["ServerDetails"]["Test_Database_Topology"].lower()
-        EnvironmentData["ServerDetails"]["Test_Database_Type"] = EnvironmentData["ServerDetails"]["Test_Database_Type"].lower()
-        EnvironmentData["ServerDetails"]["Test_Database_Name"] = EnvironmentData["ServerDetails"]["Test_Database_Name"].lower()
-        EnvironmentData["ServerDetails"]["Test_Server_Environment"]  = EnvironmentData["ServerDetails"]["Test_Server_Environment"].lower()
 
-        # Get Client Info
-        SubscriptionId=EnvironmentData["ClientDetails"]["SubscriptionId"]
-        Client_Hostname = EnvironmentData["ClientDetails"]["Client_Hostname"]
-        Client_Region = EnvironmentData["ClientDetails"]["Client_Region"]
-        Client_Resource_Group=EnvironmentData["ClientDetails"]["Client_Resource_Group"]
-        Client_VM_SKU = EnvironmentData["ClientDetails"]["Client_VM_SKU"]
-        Client_Username = EnvironmentData["ClientDetails"]["Client_Username"]
-        Client_Password = EnvironmentData["ClientDetails"]["Client_Password"]
-        OSImage = EnvironmentData["ClientDetails"]["OSImage"]
-
-        # Get Server Info
-        Test_Server_fqdn = EnvironmentData["ServerDetails"]["Test_Server_fqdn"]
-        Test_Server_Region = EnvironmentData["ServerDetails"]["Test_Server_Region"]
-        # 'Test_Server_Environment' should be 'Stage' or 'Prod' or 'Orcas' ; Orcas -> Current Azure PG PaaS or Sterling PG
-        Test_Server_Environment = EnvironmentData["ServerDetails"]["Test_Server_Environment"] 
-
-        Test_Server_Server_Edition = EnvironmentData["ServerDetails"]["Test_Server_Server_Edition"]
-        Test_Server_CPU_Cores = EnvironmentData["ServerDetails"]["Test_Server_CPU_Cores"]
-        Test_Server_Storage_In_MB = EnvironmentData["ServerDetails"]["Test_Server_Storage_In_MB"]
-        Test_Server_Username = EnvironmentData["ServerDetails"]["Test_Server_Username"]
-        Test_Server_Password = EnvironmentData["ServerDetails"]["Test_Server_Password"]
-        Test_Database_Type = EnvironmentData["ServerDetails"]["Test_Database_Type"]
-        Test_Database_Name = EnvironmentData["ServerDetails"]["Test_Database_Name"]
-        Test_Database_Topology = EnvironmentData["ServerDetails"]["Test_Database_Topology"]
-
-        # Get Logs/Results DB Info
-        LogsDbServer = EnvironmentData["LogsDBConfig"]["LogsDbServer"]
-        LogsDbServerUsername = EnvironmentData["LogsDBConfig"]["LogsDbServerUsername"]
-        LogsDbServerPassword = EnvironmentData["LogsDBConfig"]["LogsDbServerPassword"]
-        LogsDataBase = EnvironmentData["LogsDBConfig"]["LogsDataBase"]
-        LogsTableName = EnvironmentData["LogsDBConfig"]["LogsTableName"]
-        ResourceHealthTableName = EnvironmentData["LogsDBConfig"]["ResourceHealthTableName"]
-        ServerInfoTableName = EnvironmentData["LogsDBConfig"]["ServerInfoTableName"]
-        ClientInfoTableName = EnvironmentData["LogsDBConfig"]["ClientInfoTableName"]
-        ScheduledTestsTable = EnvironmentData["LogsDBConfig"]["ScheduledTestsTable"]
-
-        # Get Test Info
-        Test_Parameters_script = EnvironmentData["TestConfig"]["Test_Parameters_script"]
 except IOError:
     print(f"Cannot find ConfigurationFile({ConfigurationFile}). Please check and re-try!")
     exit(1)
 
-def ValidateParameters(EnvironmentData):
-    Operation=EnvironmentData["Operation"]
-    Client_Hostname = EnvironmentData["ClientDetails"]["Client_Hostname"]
-    Client_Region = EnvironmentData["ClientDetails"]["Client_Region"]
+try:
+    # Initialise parameters
+    with open(TestDataFile) as TestDataFileHandler:  
+        TestData = json.load(TestDataFileHandler)
+
+except IOError:
+    print(f"Cannot find TestDataFile({TestDataFile}). Please check and re-try!")
+    exit(1)
+
+def ValidateAndFixParameters(EnvironmentData, TestData):
+    # Use only lowercase for simplicity
+    TestData["Operation"]=TestData["Operation"].lower()
+    TestData["ClientDetails"]["Client_Region"]=TestData["ClientDetails"]["Client_Region"].lower()
+    TestData["ClientDetails"]["Client_VM_SKU"]=TestData["ClientDetails"]["Client_VM_SKU"].lower()
+    TestData["ServerDetails"]["Test_Server_Region"] = TestData["ServerDetails"]["Test_Server_Region"].lower()
+    TestData["ServerDetails"]["Test_Server_Server_Edition"] = TestData["ServerDetails"]["Test_Server_Server_Edition"].lower()
+    TestData["ServerDetails"]["Test_Database_Topology"] = TestData["ServerDetails"]["Test_Database_Topology"].lower()
+    TestData["ServerDetails"]["Test_Database_Type"] = TestData["ServerDetails"]["Test_Database_Type"].lower()
+    TestData["ServerDetails"]["Test_Database_Name"] = TestData["ServerDetails"]["Test_Database_Name"].lower()
+    TestData["ServerDetails"]["Test_Server_Environment"]  = TestData["ServerDetails"]["Test_Server_Environment"].lower()
+
+    Operation=TestData["Operation"]
+    Client_Hostname = TestData["ClientDetails"]["Client_Hostname"]
+    Client_Region = TestData["ClientDetails"]["Client_Region"]
+
+    Test_Database_Type = TestData["ServerDetails"]["Test_Database_Type"]
+    Test_Server_fqdn = TestData["ServerDetails"]["Test_Server_fqdn"]
+    Test_Server_Username = TestData["ServerDetails"]["Test_Server_Username"]
+    Test_Server_Password = TestData["ServerDetails"]["Test_Server_Password"]
+    Test_Database_Name = TestData["ServerDetails"]["Test_Database_Name"]
+    Test_Server_Region = TestData["ServerDetails"]["Test_Server_Region"]
+
+    LogsDbServer = EnvironmentData["LogsDBConfig"]["LogsDbServer"]
+    LogsDbServerUsername = EnvironmentData["LogsDBConfig"]["LogsDbServerUsername"]
+    LogsDbServerPassword = EnvironmentData["LogsDBConfig"]["LogsDbServerPassword"]
+    LogsDataBase = EnvironmentData["LogsDBConfig"]["LogsDataBase"]
+    ServerInfoTableName = EnvironmentData["LogsDBConfig"]["ServerInfoTableName"]
 
     # Get VM Name if 
     if ( len(Client_Hostname) != 0 ) and (Operation == 'create'):
-        print(f"Option 'Client_Hostname'({Client_Hostname}) is not empty and you asked to create new client.\nTo create new clients 'Client_Hostname' should be empty")
-        exit(1)
+        print(f"Option 'Client_Hostname'({Client_Hostname}) is not empty and you asked to create new client.")
+        if input(f"Do you want to create new client VM with '{Client_Hostname}' name? [yes/no]: ") != 'yes':
+            TestData["ClientDetails"]["Client_Hostname"] = ""
+        else: 
+            print(f"New Client will be created with '{Client_Hostname}' name")
 
     # Check Test_Server details
     if Test_Server_fqdn == "" or Test_Server_fqdn == None:
@@ -126,9 +118,9 @@ def ValidateParameters(EnvironmentData):
         else: 
             print(f"Config for given server: '{Test_Server_fqdn}' in ServerInfoTableName will be modifed for new client")
 
-def CreateResourceGroup(EnvironmentData):
-    Client_Region = EnvironmentData["ClientDetails"]["Client_Region"]
-    Client_Resource_Group=EnvironmentData["ClientDetails"]["Client_Resource_Group"]
+def CreateResourceGroup(TestData):
+    Client_Region = TestData["ClientDetails"]["Client_Region"]
+    Client_Resource_Group=TestData["ClientDetails"]["Client_Resource_Group"]
     
     print(f"Creating new Client_Resource_Group {Client_Resource_Group} in {Client_Region}")
     ReturnStatus = subprocess.check_output(f"az group create --name {Client_Resource_Group} \
@@ -144,14 +136,14 @@ def RollBack():
     print(f"FATAL: Occured unrecovered failure. Trying to roll back changes and exit.")
     exit(-1)
 
-def CreateVirtualMachine(EnvironmentData):
-    Client_Region = EnvironmentData["ClientDetails"]["Client_Region"]
-    Client_Resource_Group=EnvironmentData["ClientDetails"]["Client_Resource_Group"]
-    Client_VM_SKU = EnvironmentData["ClientDetails"]["Client_VM_SKU"]
-    Client_Hostname = EnvironmentData["ClientDetails"]["Client_Hostname"]
-    Client_Username = EnvironmentData["ClientDetails"]["Client_Username"]
-    Client_Password = EnvironmentData["ClientDetails"]["Client_Password"]
-    OSImage = EnvironmentData["ClientDetails"]["OSImage"]
+def CreateVirtualMachine(TestData):
+    Client_Region = TestData["ClientDetails"]["Client_Region"]
+    Client_Resource_Group=TestData["ClientDetails"]["Client_Resource_Group"]
+    Client_VM_SKU = TestData["ClientDetails"]["Client_VM_SKU"]
+    Client_Hostname = TestData["ClientDetails"]["Client_Hostname"]
+    Client_Username = TestData["ClientDetails"]["Client_Username"]
+    Client_Password = TestData["ClientDetails"]["Client_Password"]
+    OSImage = TestData["ClientDetails"]["OSImage"]
     
 
     if Client_VM_SKU is None or Client_VM_SKU == "":
@@ -239,32 +231,26 @@ def CreateVirtualMachine(EnvironmentData):
     else:
         print(f"Success!\n")
 
-    EnvironmentData["ClientDetails"]["Client_FQDN"] = subprocess.check_output(f"az vm show -g {Client_Resource_Group} \
+    TestData["ClientDetails"]["Client_FQDN"] = subprocess.check_output(f"az vm show -g {Client_Resource_Group} \
         -n {Client_Hostname} --query fqdns -d --out tsv", shell=True, encoding='utf8').strip()
 
-    # Collect VM details
-    VirtualMachineNameDetails={}
-    print("Collecting VM details..")
-    VirtualMachineNameDetails["PublicIp"] = subprocess.check_output(f"az vm show -g {Client_Resource_Group} \
-        -n {Client_Hostname} --query publicIps -d --out tsv", shell=True, encoding='utf8').strip()
-    VirtualMachineNameDetails["PrivateIp"] = subprocess.check_output(f"az vm show -g {Client_Resource_Group} \
-        -n {Client_Hostname} --query publicIps -d --out tsv", shell=True, encoding='utf8').strip()
-    VirtualMachineNameDetails["FqdnName"] = EnvironmentData["ClientDetails"]["Client_FQDN"]
-    return (VirtualMachineNameDetails)
-
-def SetupClientVM(Client_FQDN,Client_Username,Client_Password):
+def SetupClientVM(EnvironmentData, TestData):
     files=["CommonRoutines.sh", "RunTest.sh", "SendHeartBeat.sh", "pbenchTest.sh", "pgBenchParser.sh", \
         "ConnectionProperties.csv", "pgbenchSetupScript.sh"]
     
     CreateConfigFileForClient(EnvironmentData)
+    
+    Client_FQDN = TestData["ClientDetails"]["Client_FQDN"]
+    Client_Username = TestData["ClientDetails"]["Client_Username"]
+    Client_Password = TestData["ClientDetails"]["Client_Password"]
 
     for file in files:
-        ssh.do_sftp(Client_FQDN,Client_Username,Client_Password,srcfilename=f'..\sh\{file}',operation='put')
+        ssh.do_sftp(Client_FQDN, Client_Username, Client_Password, srcfilename=f'..\sh\{file}', operation='put')
 
-    ssh.exec_cmd(Client_FQDN,Client_Username,Client_Password,"sudo apt-get update; sudo apt install -y \
+    ssh.exec_cmd(Client_FQDN, Client_Username, Client_Password, "sudo apt-get update; sudo apt install -y \
         dos2unix;dos2unix * ;chmod +x *.sh;bash pgbenchSetupScript.sh>pgbenchSetupScript.log")
 
-    ssh.do_sftp(Client_FQDN,Client_Username,Client_Password,srcfilename='pgbenchSetupScript.log',operation='get')
+    ssh.do_sftp(Client_FQDN, Client_Username, Client_Password, srcfilename='pgbenchSetupScript.log', operation='get')
 
     if 'performance_test_setup_success' not in open('pgbenchSetupScript.log').read():
         print("Performance test setup Failed")
@@ -287,18 +273,18 @@ def CreateConfigFileForClient(EnvironmentData):
     filep.write(f"ScheduledTestsTable,{EnvironmentData['LogsDBConfig']['ScheduledTestsTable']}\n")
     filep.close()
 
-def UpdateConfig(EnvironmentData, Client_Hostname = None):
+def UpdateConfig(EnvironmentData, TestData, Client_Hostname = None):
     if Client_Hostname is None:
-        Client_Hostname = EnvironmentData["ClientDetails"]["Client_Hostname"]
+        Client_Hostname = TestData["ClientDetails"]["Client_Hostname"]
 
-    Client_FQDN = EnvironmentData["ClientDetails"]["Client_FQDN"]
-    Client_Username = EnvironmentData["ClientDetails"]["Client_Username"]
-    Client_Password = EnvironmentData["ClientDetails"]["Client_Password"]
+    Client_FQDN = TestData["ClientDetails"]["Client_FQDN"]
+    Client_Username = TestData["ClientDetails"]["Client_Username"]
+    Client_Password = TestData["ClientDetails"]["Client_Password"]
 
-    if SetupClientVM(Client_FQDN, Client_Username, Client_Password):
-        if db.InsertServerInfoIntoDb(EnvironmentData):
-            if db.InsertClientInfoIntoDb(EnvironmentData):
-                if db.InsertTestInfoIntoDb(EnvironmentData):
+    if SetupClientVM(EnvironmentData, TestData):
+        if db.InsertServerInfoIntoDb(EnvironmentData, TestData):
+            if db.InsertClientInfoIntoDb(EnvironmentData, TestData):
+                if db.InsertTestInfoIntoDb(EnvironmentData, TestData):
                     print("Done configuring tests.")
                     print("Starting a dry run...")
                     # Start the test now instead of waiting for next trigger interval
@@ -320,14 +306,13 @@ def UpdateConfig(EnvironmentData, Client_Hostname = None):
         return False
     return True
 
-def CreateClientVirtualMachine (EnvironmentData):
-    SubscriptionId=EnvironmentData["ClientDetails"]["SubscriptionId"]
-    Client_Hostname = EnvironmentData["ClientDetails"]["Client_Hostname"]
-    Client_Region = EnvironmentData["ClientDetails"]["Client_Region"]
-    Client_Resource_Group=EnvironmentData["ClientDetails"]["Client_Resource_Group"]
-    Client_VM_SKU = EnvironmentData["ClientDetails"]["Client_VM_SKU"]
-    Client_Username = EnvironmentData["ClientDetails"]["Client_Username"]
-    Client_Password = EnvironmentData["ClientDetails"]["Client_Password"]
+def CreateClientVirtualMachine (EnvironmentData, TestData):
+    SubscriptionId=TestData["ClientDetails"]["SubscriptionId"]
+    Client_Region = TestData["ClientDetails"]["Client_Region"]
+    Client_Resource_Group=TestData["ClientDetails"]["Client_Resource_Group"]
+    Client_VM_SKU = TestData["ClientDetails"]["Client_VM_SKU"]
+    Client_Username = TestData["ClientDetails"]["Client_Username"]
+    Client_Password = TestData["ClientDetails"]["Client_Password"]
 
     print(f"Setting Azure subscriptionId: '{SubscriptionId}'..")
     ReturnStatus=os.system(f"az account set --subscription {SubscriptionId}")
@@ -344,22 +329,34 @@ def CreateClientVirtualMachine (EnvironmentData):
 
     if Client_Resource_Group is None or Client_Resource_Group == "":
         Client_Resource_Group = f"{NameTag}-rg"
+    
 
     # Checking given Resource Group exists or not
     if 'true' not in subprocess.check_output(f"az group exists --name {Client_Resource_Group}", \
         shell=True, encoding='utf8'):
-        CreateResourceGroup(EnvironmentData)
+        CreateResourceGroup(TestData)
     else:
         print(f"Using existing ResourceGroup '{Client_Resource_Group}' for the creation the of test client")
     
-    EnvironmentData["ClientDetails"]["Client_Hostname"] = NameTag
-    
-    VirtualMachineNameDetail = CreateVirtualMachine(EnvironmentData)
-    
-    print(Client_Hostname, VirtualMachineNameDetail["FqdnName"], Client_VM_SKU, Client_Region, \
-        Client_Resource_Group, VirtualMachineNameDetail["PublicIp"], Client_Hostname, Client_Password)
+    if TestData["ClientDetails"]["Client_Hostname"] == "":
+        TestData["ClientDetails"]["Client_Hostname"] = NameTag
+    else:
+        output=""
+        try:
+            # Checking given Resource Group exists or not
+            output = subprocess.check_output(f"az vm show -g {Client_Resource_Group}  -n {TestData['ClientDetails']['Client_Hostname']}", shell=True, encoding='utf8')
+        except:
+            pass
 
-    Client_FQDN = EnvironmentData["ClientDetails"]["Client_FQDN"]
+        if TestData["ClientDetails"]["Client_Hostname"] in output:
+            print(f"FATAL: There exists a VM with name '{TestData['ClientDetails']['Client_Hostname']}' in '{Client_Resource_Group}' and you asked to creat new VM with same name.")
+            RollBack()
+
+    CreateVirtualMachine(TestData)    
+    print(TestData["ClientDetails"]["Client_Hostname"], TestData["ClientDetails"]["Client_FQDN"], \
+        Client_VM_SKU, Client_Region, Client_Resource_Group)
+
+    Client_FQDN = TestData["ClientDetails"]["Client_FQDN"]
     
     reTryTimes=6
     for reTry in range(0, reTryTimes):
@@ -372,13 +369,6 @@ def CreateClientVirtualMachine (EnvironmentData):
     else:
         print(f"Failed to connect to created VM")
         return False
-    
-    print("Updating the config")
-    if UpdateConfig(EnvironmentData, Client_Username):
-        print("Config updated succesfully!")
-    else:
-        print("Failed to update configuration!")
-        return False
 
     return True
 
@@ -387,20 +377,21 @@ def CreateClientVirtualMachine (EnvironmentData):
 ##--------------------------------------------------------------------
 
 if __name__ == '__main__':
-    ValidateParameters(EnvironmentData)
+    ValidateAndFixParameters(EnvironmentData, TestData)
     ProvisionedResources={}
-    Operation=EnvironmentData["Operation"]
+    Operation=TestData["Operation"]
 
     try:
         if Operation == 'create':
-            if CreateClientVirtualMachine(EnvironmentData):
+            if CreateClientVirtualMachine(EnvironmentData, TestData):
                 print("Virtual machine created succesfully!")
             else:
                 print("Failed to create Virtual machine!")
                 RollBack()
-        elif Operation == 'update':
+
+        if Operation in ['update', 'create']:
             print("Updating the config")
-            if UpdateConfig(EnvironmentData):
+            if UpdateConfig(EnvironmentData, TestData):
                 print("Config updated succesfully!")
             else:
                 print("Failed to update configuration!")

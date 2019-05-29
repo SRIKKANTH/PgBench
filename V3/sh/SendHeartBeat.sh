@@ -141,6 +141,7 @@ function UpdateResourceHeathToLogsDB ()
             Recent_Test_Logs="Sorry no logs available!"
         fi
     fi
+    
     # Check many connections are established between client and server
     Current_Test_Active_Connections=`CurrentTestActiveConnections`
 
@@ -188,7 +189,6 @@ function UpdateResourceHeathToLogsDB ()
                 Client_Memory_Usage_Percentage, \
                 Client_Cpu_Usage_Percentage, \
                 Client_Root_Disk_Usage_Percentage, \
-                Recent_Test_Logs, \
                 Client_Last_Reboot \
             ) VALUES ( 
                 '$Client_Hostname', \
@@ -205,62 +205,57 @@ function UpdateResourceHeathToLogsDB ()
                 $Client_Memory_Usage_Percentage, \
                 $Client_Cpu_Usage_Percentage, \
                 $Client_Root_Disk_Usage_Percentage, \
-                '$Recent_Test_Logs', \
                 '$Client_Last_Reboot' \
         ); "
     else
-        # Update the row if one exists for this client
-        if [ $Is_Test_Server_Accessible_From_Client == 'Yes' ] 
-        then
-        # If Test_Server_fqdn is accessible update all values
-            sql_cmd="UPDATE $ResourceHealthTableName  \
-            set \
-                Test_Server_fqdn='$Test_Server_fqdn', \
-                Test_Server_Environment='$Test_Server_Environment', \
-                Test_Server_Region='$Test_Server_Region', \
-                Test_Database_Type='$Test_Database_Type', \
-                Test_Type='$Test_Type', \
-                Client_Last_HeartBeat='$Client_Last_HeartBeat', \
-                Server_Last_HeartBeat='$Server_Last_HeartBeat', \
-                Is_Test_Server_Accessible_From_Client='$Is_Test_Server_Accessible_From_Client', \
-                Is_Test_Executing='$Is_Test_Executing', \
-                Current_Test_Active_Connections=$Current_Test_Active_Connections, \
-                Client_Memory_Usage_Percentage=$Client_Memory_Usage_Percentage, \
-                Client_Cpu_Usage_Percentage=$Client_Cpu_Usage_Percentage, \
-                Client_Root_Disk_Usage_Percentage=$Client_Root_Disk_Usage_Percentage, \
-                Recent_Test_Logs='$Recent_Test_Logs', \
-                Client_Last_Reboot='$Client_Last_Reboot' \
-            WHERE Client_Hostname='$Client_Hostname'; "
-        else
-        # If Test_Server_fqdn is NOT accessible skip 'Server_Last_HeartBeat' value and update all values
-            sql_cmd="UPDATE $ResourceHealthTableName  \
-            set \
-                Test_Server_fqdn='$Test_Server_fqdn', \
-                Test_Server_Environment='$Test_Server_Environment', \
-                Test_Server_Region='$Test_Server_Region', \
-                Test_Database_Type='$Test_Database_Type', \
-                Test_Type='$Test_Type', \
-                Client_Last_HeartBeat='$Client_Last_HeartBeat', \
-                Is_Test_Server_Accessible_From_Client='$Is_Test_Server_Accessible_From_Client', \
-                Is_Test_Executing='$Is_Test_Executing', \
-                Current_Test_Active_Connections=$Current_Test_Active_Connections, \
-                Client_Memory_Usage_Percentage=$Client_Memory_Usage_Percentage, \
-                Client_Cpu_Usage_Percentage=$Client_Cpu_Usage_Percentage, \
-                Client_Root_Disk_Usage_Percentage=$Client_Root_Disk_Usage_Percentage, \
-                Recent_Test_Logs='$Recent_Test_Logs', \
-                Client_Last_Reboot='$Client_Last_Reboot' \
-            WHERE Client_Hostname='$Client_Hostname'; "
-        fi
+    # If Test_Server_fqdn is NOT accessible skip 'Server_Last_HeartBeat' value and update all values
+        sql_cmd="UPDATE $ResourceHealthTableName  \
+        set \
+            Test_Server_fqdn='$Test_Server_fqdn', \
+            Test_Server_Environment='$Test_Server_Environment', \
+            Test_Server_Region='$Test_Server_Region', \
+            Test_Database_Type='$Test_Database_Type', \
+            Test_Type='$Test_Type', \
+            Client_Last_HeartBeat='$Client_Last_HeartBeat', \
+            Is_Test_Server_Accessible_From_Client='$Is_Test_Server_Accessible_From_Client', \
+            Is_Test_Executing='$Is_Test_Executing', \
+            Current_Test_Active_Connections=$Current_Test_Active_Connections, \
+            Client_Memory_Usage_Percentage=$Client_Memory_Usage_Percentage, \
+            Client_Cpu_Usage_Percentage=$Client_Cpu_Usage_Percentage, \
+            Client_Root_Disk_Usage_Percentage=$Client_Root_Disk_Usage_Percentage, \
+            Client_Last_Reboot='$Client_Last_Reboot' \
+        WHERE Client_Hostname='$Client_Hostname'; "
+    fi
+    echo "sql_cmd: $sql_cmd"
+    ExecuteQueryOnLogsDB "$sql_cmd"
+
+    # Updating Recent_Test_Logs into ResourceHealthTableName
+    sql_cmd="UPDATE $ResourceHealthTableName  \
+        set \
+            Recent_Test_Logs='$Recent_Test_Logs' \
+        WHERE Client_Hostname='$Client_Hostname'; "
+    
+    echo "sql_cmd: $sql_cmd"
+    ExecuteQueryOnLogsDB "$sql_cmd"
+
+# Update heart beat info  into $ServerInfoTableName and $ResourceHealthTableName tables if Server is accessible
+    if [ $Is_Test_Server_Accessible_From_Client == 'Yes' ] 
+    then
+        sql_server_cmd="UPDATE $ResourceHealthTableName set \
+                Server_Last_HeartBeat='$Server_Last_HeartBeat' \
+            WHERE Client_Hostname='$Client_Hostname'; \
+            UPDATE $ServerInfoTableName set \
+                Server_Last_HeartBeat='$Server_Last_HeartBeat' \
+            WHERE Test_Server_fqdn='$Test_Server_fqdn' ; "
+
+        echo "sql_server_cmd: $sql_server_cmd"
+        ExecuteQueryOnLogsDB "$sql_server_cmd"
+    else
+        echo "Skipping to update Server_info table as server is not accessible from server"
     fi
 
-    # Update heart beat info  into $ServerInfoTableName table of the logs DB
-    sql_cmd=$sql_cmd"UPDATE $ServerInfoTableName \
-        set \
-            Server_Last_HeartBeat='$Server_Last_HeartBeat' \
-        WHERE Test_Server_fqdn='$Test_Server_fqdn' ; "
-
     # Update heart beat info  into $ClientInfoTableName table of the logs DB
-    sql_cmd=$sql_cmd"UPDATE $ClientInfoTableName \
+    sql_cmd="UPDATE $ClientInfoTableName \
         set \
             Client_Last_HeartBeat='$Client_Last_HeartBeat' \
         WHERE Client_Hostname='$Client_Hostname'; "  
